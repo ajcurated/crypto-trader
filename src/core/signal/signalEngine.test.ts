@@ -38,6 +38,15 @@ describe("buildTargetBook", () => {
     expect(scores.map((s) => s.coin)).not.toContain("NEW");
   });
 
+  it("excludes a zero-volatility coin so its NaN can't poison the cross-section", () => {
+    const c = closes();
+    c.set("FLAT", [100, 100, 100]); // zero vol -> NaN momentum -> must be excluded
+    const { scores } = buildTargetBook(c, PARAMS);
+    expect(scores.map((s) => s.coin)).not.toContain("FLAT");
+    expect(scores.every((s) => Number.isFinite(s.score))).toBe(true);
+    expect(scores[0]!.coin).toBe("UP1"); // ranking stays correct
+  });
+
   it("returns scores ranked descending", () => {
     const { scores } = buildTargetBook(closes(), PARAMS);
     const vals = scores.map((s) => s.score);

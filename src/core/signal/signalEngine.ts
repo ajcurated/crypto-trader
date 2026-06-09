@@ -1,3 +1,4 @@
+import { riskAdjustedMomentum } from "./returns.js";
 import { compositeScores, type CoinScore } from "./score.js";
 import { perSideCount, applyHysteresis, weightBook, type CurrentBook, type TargetBook } from "./book.js";
 
@@ -16,9 +17,12 @@ export interface SignalParams {
 const EMPTY_BOOK: CurrentBook = { longs: [], shorts: [] };
 
 /**
- * Build the target book from per-coin close-price series. Coins without enough
- * history for the longest lookback are excluded. Returns the descending-ranked
- * scores (for inspection/persistence) and the dollar-neutral target book.
+ * Build the target book from per-coin close-price series. A coin is excluded if
+ * it lacks enough history for the longest lookback, or if its risk-adjusted
+ * momentum is undefined for any lookback (e.g. zero volatility over the window
+ * gives 0/0 = NaN) — otherwise that NaN would poison the cross-sectional
+ * z-scores for every coin. Returns the descending-ranked scores (for
+ * inspection/persistence) and the dollar-neutral target book.
  */
 export function buildTargetBook(
   closesByCoin: Map<string, number[]>,
@@ -28,7 +32,9 @@ export function buildTargetBook(
   const minCloses = Math.max(...params.lookbacks) + 1;
   const eligible = new Map<string, number[]>();
   for (const [coin, closes] of closesByCoin) {
-    if (closes.length >= minCloses) eligible.set(coin, closes);
+    if (closes.length < minCloses) continue;
+    const finite = params.lookbacks.every((lb) => Number.isFinite(riskAdjustedMomentum(closes, lb)));
+    if (finite) eligible.set(coin, closes);
   }
 
   const scores = compositeScores(eligible, params.lookbacks);
