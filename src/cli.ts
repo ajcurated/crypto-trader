@@ -4,6 +4,7 @@ import { HyperLiquidDataSource } from "./core/data/index.js";
 import { runDailyCycle } from "./runner/runner.js";
 import { formatReport } from "./runner/report.js";
 import { RiskLoop } from "./runner/riskLoop.js";
+import { Daemon } from "./runner/daemon.js";
 import { ConsoleNotifier, MultiNotifier, TelegramNotifier, type Notifier } from "./core/notify/index.js";
 
 /** Build a notifier from env: always console, plus Telegram if creds are set. */
@@ -38,8 +39,17 @@ async function main(): Promise<void> {
       await new Promise<void>((resolve) => {
         process.on("SIGINT", () => { loop.stop(); resolve(); });
       });
+    } else if (command === "daemon") {
+      const data = new HyperLiquidDataSource();
+      const notify = buildNotifier(process.env);
+      const daemon = new Daemon({ data, store, config, notify, now: () => Date.now(), schedule: (fn, ms) => void setInterval(fn, ms) });
+      await daemon.start();
+      console.log("daemon running (daily cycle + risk loop)… (ctrl-c to stop)");
+      await new Promise<void>((resolve) => {
+        process.on("SIGINT", () => { daemon.stop(); resolve(); });
+      });
     } else {
-      console.error(`unknown command: ${command}\nusage: cli.ts [run|report|watch]`);
+      console.error(`unknown command: ${command}\nusage: cli.ts [run|report|watch|daemon]`);
       process.exitCode = 1;
     }
   } finally {
