@@ -69,7 +69,11 @@ export class PaperAccount {
 
     const fills: Fill[] = [];
     for (const order of ordersToReach(this.signedSizes(), target)) {
-      const mark = prices.get(order.coin)!;
+      const mark = prices.get(order.coin);
+      // A held coin that fell out of the priced universe can't be traded this
+      // tick — leave the position untouched rather than fill at an undefined
+      // price (which would NaN-poison cash and entry).
+      if (mark === undefined) continue;
       const slip = slippageFraction(
         order.deltaSize * mark,
         recentVolumes.get(order.coin) ?? 0,

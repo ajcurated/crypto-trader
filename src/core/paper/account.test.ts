@@ -78,4 +78,15 @@ describe("PaperAccount", () => {
     expect(point.equity).toBeCloseTo(100_000 + point.pricePnl + point.fundingPnl - point.fees, 6);
     expect(acct.positions().map((p) => p.coin).sort()).toEqual(["BTC", "SOL"]); // ETH closed
   });
+
+  it("leaves a held position untouched (no NaN) when its coin is unpriced at rebalance", () => {
+    const acct = new PaperAccount(100_000, PARAMS);
+    acct.rebalance(new Map([["BTC", 0.5], ["ETH", -0.5]]), prices({ BTC: 100, ETH: 50 }), new Map([["BTC", 1e12], ["ETH", 1e12]]));
+    // ETH drops out of the universe: target + prices omit it entirely.
+    acct.rebalance(new Map([["BTC", 0.5]]), prices({ BTC: 110 }), new Map([["BTC", 1e12]]));
+
+    // ETH position is retained (couldn't be closed without a price), nothing NaN'd.
+    expect(acct.positions().map((p) => p.coin).sort()).toEqual(["BTC", "ETH"]);
+    expect(Number.isFinite(acct.equity(prices({ BTC: 110, ETH: 50 })))).toBe(true);
+  });
 });
