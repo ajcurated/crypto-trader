@@ -94,4 +94,33 @@ describe("runDailyCycle", () => {
     expect(point.fundingPnl).toBeLessThan(0);
     store.close();
   });
+
+  it("tolerates a per-coin candle fetch failure without aborting the tick", async () => {
+    const store = new SqliteDatastore(":memory:");
+    store.init();
+    const base = fakeData();
+    const data = {
+      ...base,
+      async getDailyCandles(coin: string, days: number): Promise<Candle[]> {
+        if (coin === "DN3") throw new Error("flaky fetch");
+        return base.getDailyCandles(coin, days);
+      },
+    };
+    const cfg: Config = { ...DEFAULT_CONFIG, universeSize: 6, candleHistoryDays: 70, rebalanceIntervalDays: 7, minUniverseForRebalance: 1 };
+    const point = await runDailyCycle({ data, store, config: cfg, now: 10 * DAY });
+    expect(point.timestamp).toBe(10 * DAY);
+    expect(store.getLatestSignal()!.scores.map((s) => s.coin)).not.toContain("DN3");
+    store.close();
+  });
+
+  it("skips the rebalance (keeps marking) when too few coins have usable history", async () => {
+    const store = new SqliteDatastore(":memory:");
+    store.init();
+    const cfg: Config = { ...DEFAULT_CONFIG, universeSize: 6, candleHistoryDays: 70, rebalanceIntervalDays: 7, minUniverseForRebalance: 999 };
+    await runDailyCycle({ data: fakeData(), store, config: cfg, now: 10 * DAY });
+    expect(store.getAccountState()!.positions).toEqual([]);
+    expect(store.getEquityCurve()).toHaveLength(1);
+    expect(store.getRunnerState()!.lastRebalanceAt).toBe(0);
+    store.close();
+  });
 });
