@@ -1,0 +1,14 @@
+[
+  {
+    "universe": [
+      { "name": "BTC", "szDecimals": 5, "maxLeverage": 50 },
+      { "name": "ETH", "szDecimals": 4, "maxLeverage": 50 },
+      { "name": "SOL", "szDecimals": 2, "maxLeverage": 20 }
+    ]
+  },
+  [
+    { "dayNtlVlm": "2500000.0", "funding": "0.0000125", "markPx": "65000.0", "midPx": "65001.0", "oraclePx": "64999.0", "prevDayPx": "64000.0", "openInterest": "120.0" },
+    { "dayNtlVlm": "3000000.0", "funding": "0.0000100", "markPx": "3500.0", "midPx": "3500.5", "oraclePx": "3499.0", "prevDayPx": "3400.0", "openInterest": "900.0" },
+    { "dayNtlVlm": "2000000.0", "funding": "-0.0000050", "markPx": "150.0", "midPx": null, "oraclePx": "149.5", "prevDayPx": "145.0", "openInterest": "5000.0" }
+  ]
+]
