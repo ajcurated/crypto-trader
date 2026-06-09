@@ -63,3 +63,25 @@ export function parseFunding(raw: unknown): FundingPoint[] {
     time: f.time,
   }));
 }
+
+interface WsCtxMessage {
+  channel: string;
+  data?: { coin: string; ctx: RawCtx };
+}
+
+/** Parse a WS message; return an AssetContext for `activeAssetCtx`, else null. */
+export function parseWsCtx(msg: unknown): AssetContext | null {
+  const m = msg as WsCtxMessage;
+  if (m.channel !== "activeAssetCtx" || !m.data) return null;
+  const c = m.data.ctx;
+  return {
+    name: m.data.coin,
+    dayNtlVlm: num(c.dayNtlVlm),
+    funding: num(c.funding),
+    markPx: num(c.markPx),
+    midPx: c.midPx === null ? null : num(c.midPx),
+    oraclePx: num(c.oraclePx),
+    prevDayPx: num(c.prevDayPx),
+    openInterest: num(c.openInterest),
+  };
+}
