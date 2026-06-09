@@ -1,4 +1,4 @@
-import { WebSocket } from "ws";
+import { WebSocket, type RawData } from "ws";
 import type { MarketDataSource } from "../MarketDataSource.js";
 import type { AssetContext, Candle, FundingPoint, WatchHandlers, WatchHandle, WatchStatus } from "../types.js";
 import { postInfo, type FetchFn } from "./http.js";
@@ -82,8 +82,15 @@ function defaultWsFactory(url: string): SocketLike {
     onopen: null, onmessage: null, onclose: null, onerror: null,
   };
   raw.on("open", () => sock.onopen?.());
-  raw.on("message", (d: Buffer) => sock.onmessage?.(d.toString()));
+  raw.on("message", (d: RawData) => sock.onmessage?.(decodeFrame(d)));
   raw.on("close", () => sock.onclose?.());
   raw.on("error", (e: Error) => sock.onerror?.(e));
   return sock;
+}
+
+/** Decode any `ws` frame (Buffer | ArrayBuffer | Buffer[]) to a UTF-8 string. */
+function decodeFrame(d: RawData): string {
+  if (Array.isArray(d)) return Buffer.concat(d).toString();
+  if (Buffer.isBuffer(d)) return d.toString();
+  return Buffer.from(d).toString();
 }
