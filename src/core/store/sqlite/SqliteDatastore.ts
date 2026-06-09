@@ -84,6 +84,10 @@ export class SqliteDatastore implements Datastore {
     return { capturedAt: row.captured_at, scores: JSON.parse(row.payload) as CoinScore[] };
   }
 
+  transaction(fn: () => void): void {
+    this.db.transaction(fn)();
+  }
+
   close(): void {
     this.db.close();
   }

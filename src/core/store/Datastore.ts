@@ -43,6 +43,8 @@ export interface Datastore {
   saveSignal(capturedAt: number, scores: CoinScore[]): void;
   /** The most recently captured signal, or null. */
   getLatestSignal(): { capturedAt: number; scores: CoinScore[] } | null;
+  /** Run `fn` atomically: all writes inside commit together or not at all. */
+  transaction(fn: () => void): void;
   /** Release underlying resources. */
   close(): void;
 }

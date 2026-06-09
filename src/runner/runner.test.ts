@@ -72,4 +72,26 @@ describe("runDailyCycle", () => {
     expect(store.getRunnerState()!.lastRebalanceAt).toBe(rebAt1);
     store.close();
   });
+
+  it("accrues funding on the next tick against the held book", async () => {
+    const store = new SqliteDatastore(":memory:");
+    store.init();
+    // Data source that charges funding (longs pay more than shorts receive).
+    const base = fakeData();
+    const data = {
+      ...base,
+      async getFundingHistory(coin: string, sinceMs: number): Promise<FundingPoint[]> {
+        const rate = coin.startsWith("UP") ? 0.0002 : 0.0001;
+        return [{ coin, rate, time: sinceMs + DAY / 2 }];
+      },
+    };
+    const cfg: Config = { ...DEFAULT_CONFIG, universeSize: 6, candleHistoryDays: 70, rebalanceIntervalDays: 7 };
+
+    await runDailyCycle({ data, store, config: cfg, now: 10 * DAY }); // opens book, no funding
+    expect(store.getEquityCurve()[0]!.fundingPnl).toBe(0);
+    const point = await runDailyCycle({ data, store, config: cfg, now: 11 * DAY });
+    // Long pays 0.0002, short receives 0.0001 on equal notionals -> net negative.
+    expect(point.fundingPnl).toBeLessThan(0);
+    store.close();
+  });
 });

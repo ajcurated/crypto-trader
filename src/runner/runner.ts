@@ -27,7 +27,10 @@ export async function runDailyCycle(deps: RunnerDeps): Promise<EquityPoint> {
 
   const runner = store.getRunnerState();
   const curve = store.getEquityCurve();
-  if (runner && dayIndex(runner.lastMarkAt) === dayIndex(now)) {
+  // Idempotent + monotonic: skip if we've already marked today OR `now` is an
+  // earlier day than the last mark (clock skew / out-of-order). The curve guard
+  // keeps the `!` safe even if a prior tick's writes were somehow torn.
+  if (runner && curve.length > 0 && dayIndex(now) <= dayIndex(runner.lastMarkAt)) {
     return curve[curve.length - 1]!;
   }
 
@@ -49,15 +52,8 @@ export async function runDailyCycle(deps: RunnerDeps): Promise<EquityPoint> {
   const account = prevState ? PaperAccount.fromState(prevState, config.paper) : new PaperAccount(config.initialCapital, config.paper);
   const current = currentBookFromPositions(account.positions());
 
-  // 4. Signal (saved every tick for reporting).
-  const { scores, book } = buildTargetBook(closesByCoin, config.signal, current);
-  store.saveSignal(now, scores);
-
-  // 5. Rebalance on cadence (or first ever).
-  const shouldRebalance = !runner || runner.lastRebalanceAt === 0 || now - runner.lastRebalanceAt >= config.rebalanceIntervalDays * DAY;
-  if (shouldRebalance) account.rebalance(weightsFromBook(book), prices, volumes);
-
-  // 6. Funding since last mark (none on the first tick).
+  // 4. Accrue funding on the PRE-rebalance book (the positions actually held
+  //    over the interval since the last mark). None on the first tick.
   if (runner) {
     const rates = new Map<string, number>();
     for (const p of account.positions()) {
@@ -67,13 +63,23 @@ export async function runDailyCycle(deps: RunnerDeps): Promise<EquityPoint> {
     account.accrueFunding(rates, prices);
   }
 
-  // 7. Mark + persist.
+  // 5. Signal (saved every tick for reporting).
+  const { scores, book } = buildTargetBook(closesByCoin, config.signal, current);
+
+  // 6. Rebalance on cadence (or first ever).
+  const shouldRebalance = !runner || runner.lastRebalanceAt === 0 || now - runner.lastRebalanceAt >= config.rebalanceIntervalDays * DAY;
+  if (shouldRebalance) account.rebalance(weightsFromBook(book), prices, volumes);
+
+  // 7. Mark + persist atomically (equity, account, runner, signal commit together).
   const point = account.mark(prices, now);
-  store.saveEquityPoint(point);
-  store.saveAccountState(account.toState());
-  store.saveRunnerState({
-    lastMarkAt: now,
-    lastRebalanceAt: shouldRebalance ? now : (runner?.lastRebalanceAt ?? now),
+  store.transaction(() => {
+    store.saveSignal(now, scores);
+    store.saveEquityPoint(point);
+    store.saveAccountState(account.toState());
+    store.saveRunnerState({
+      lastMarkAt: now,
+      lastRebalanceAt: shouldRebalance ? now : (runner?.lastRebalanceAt ?? now),
+    });
   });
   return point;
 }
