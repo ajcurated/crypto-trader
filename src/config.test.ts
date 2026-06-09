@@ -15,4 +15,7 @@ describe("loadConfig", () => {
   it("ignores non-numeric overrides and keeps the default", () => {
     expect(loadConfig({ UNIVERSE_SIZE: "abc" }).universeSize).toBe(DEFAULT_CONFIG.universeSize);
   });
+  it("includes risk defaults", () => {
+    expect(loadConfig({}).risk).toEqual({ spreadStopPct: 0.08, circuitBreakerBand: 0.15, fundingAlertAnnualized: 0.5 });
+  });
 });
