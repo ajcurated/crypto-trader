@@ -12,7 +12,11 @@ describe("bucketFundingByDay", () => {
       { coin: "BTC", rate: 0.0002, time: DAY / 2 },
       { coin: "BTC", rate: 0.0003, time: DAY + 100 },
     ];
-    expect(bucketFundingByDay(points, dayTimestamps)).toEqual([0.0003, 0.0003, 0]);
+    const out = bucketFundingByDay(points, dayTimestamps);
+    expect(out).toHaveLength(3);
+    expect(out[0]!).toBeCloseTo(0.0003, 12); // 0.0001 + 0.0002 (float-tolerant)
+    expect(out[1]!).toBeCloseTo(0.0003, 12);
+    expect(out[2]!).toBe(0);
   });
 
   it("returns all-zero for no points", () => {

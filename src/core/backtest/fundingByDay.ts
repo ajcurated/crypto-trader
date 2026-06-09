@@ -17,6 +17,5 @@ export function bucketFundingByDay(points: FundingPoint[], dayTimestamps: number
     const slot = dayIndexOf.get(Math.floor(p.time / DAY));
     if (slot !== undefined) out[slot]! += p.rate;
   }
-  // Round to 15 significant figures to eliminate IEEE-754 accumulation noise
-  return out.map((v) => parseFloat(v.toPrecision(15)));
+  return out;
 }
