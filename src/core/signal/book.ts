@@ -1,3 +1,5 @@
+import type { CoinScore } from "./score.js";
+
 export type Side = "long" | "short";
 
 /** One target position: a coin, a side, and its weight as a fraction of NAV. */
@@ -21,6 +23,36 @@ export interface CurrentBook {
 /** Names per side for a quintile-style selection: floor(n * fraction), min 1. */
 export function perSideCount(n: number, quintileFraction: number): number {
   return Math.max(1, Math.floor(n * quintileFraction));
+}
+
+/**
+ * Churn-damped side selection. Longs = the top-k by rank PLUS any incumbent
+ * longs still within the top (k + buffer); symmetric for shorts. The result is
+ * rank-ordered and holds between k and k+buffer names per side. With an empty
+ * current book this is exactly top-k / bottom-k. Assumes n >= 2*(k+buffer) so
+ * the long and short hold-zones do not overlap.
+ */
+export function applyHysteresis(
+  ranked: CoinScore[],
+  k: number,
+  buffer: number,
+  current: CurrentBook,
+): CurrentBook {
+  const order = ranked.map((s) => s.coin); // index 0 = best
+  const n = order.length;
+
+  const topHold = new Set(order.slice(0, k + buffer));
+  const longSet = new Set<string>(order.slice(0, k));
+  for (const coin of current.longs) if (topHold.has(coin)) longSet.add(coin);
+
+  const botHold = new Set(order.slice(n - (k + buffer)));
+  const shortSet = new Set<string>(order.slice(n - k));
+  for (const coin of current.shorts) if (botHold.has(coin)) shortSet.add(coin);
+
+  return {
+    longs: order.filter((c) => longSet.has(c)),
+    shorts: order.filter((c) => shortSet.has(c)),
+  };
 }
 
 /**
