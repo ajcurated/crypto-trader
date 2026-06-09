@@ -27,7 +27,14 @@ export class RiskLoop {
 
   constructor(private readonly deps: RiskLoopDeps) {}
 
+  /**
+   * Begin watching the currently-held coins. Idempotent: a prior subscription
+   * is closed first. NOTE (v1 limitation): the watched set is fixed at start
+   * time, so coins opened by a later daily rebalance are not monitored until
+   * the loop is restarted — call stop()/start() after a rebalance to refresh.
+   */
   start(): void {
+    this.handle?.close();
     const state = this.deps.store.getAccountState();
     const coins = state ? state.positions.map((p) => p.coin) : [];
     this.handle = this.deps.data.watch(coins, {
@@ -49,7 +56,12 @@ export class RiskLoop {
   private onTick(ctx: AssetContext): void {
     this.marks.set(ctx.name, ctx.midPx !== null ? ctx.midPx : ctx.markPx);
     this.funding.set(ctx.name, ctx.funding);
-    this.pending = this.pending.then(() => this.evaluate());
+    // Serialize ticks and never let a thrown error poison the chain or raise an
+    // unhandled rejection — the daemon must keep watching. console.error can't
+    // itself throw, so the terminal catch is bulletproof.
+    this.pending = this.pending
+      .then(() => this.evaluate())
+      .catch((err) => { console.error("risk loop tick failed:", err); });
   }
 
   private async evaluate(): Promise<void> {

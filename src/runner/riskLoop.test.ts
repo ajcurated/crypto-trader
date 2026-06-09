@@ -92,4 +92,18 @@ describe("RiskLoop", () => {
     loop.stop();
     store.close();
   });
+
+  it("still flattens (and idle resolves) even when the notifier keeps failing", async () => {
+    const store = seededStore();
+    const { ds, push } = fakeData();
+    const notify = { send: vi.fn(async () => { throw new Error("down"); }) };
+    const loop = new RiskLoop(deps(store, ds, notify));
+    loop.start();
+    push(ctx("BTC", 95));
+    push(ctx("ETH", 53)); // spread stop
+    await expect(loop.idle()).resolves.toBeUndefined(); // chain not poisoned
+    expect(store.getAccountState()!.positions).toEqual([]); // flatten still happened
+    loop.stop();
+    store.close();
+  });
 });
