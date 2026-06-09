@@ -1,6 +1,8 @@
 import Database from "better-sqlite3";
 import type { Database as DB } from "better-sqlite3";
-import type { Datastore, MarketSnapshot } from "../Datastore.js";
+import type { Datastore, MarketSnapshot, RunnerState } from "../Datastore.js";
+import type { EquityPoint, AccountState } from "../../paper/index.js";
+import type { CoinScore } from "../../signal/index.js";
 import { migrate } from "./schema.js";
 
 export class SqliteDatastore implements Datastore {
@@ -27,6 +29,59 @@ export class SqliteDatastore implements Datastore {
       .get() as { captured_at: number; payload: string } | undefined;
     if (!row) return null;
     return { capturedAt: row.captured_at, universe: JSON.parse(row.payload) };
+  }
+
+  saveEquityPoint(point: EquityPoint): void {
+    this.db
+      .prepare("INSERT OR REPLACE INTO equity_points (timestamp, payload) VALUES (?, ?)")
+      .run(point.timestamp, JSON.stringify(point));
+  }
+
+  getEquityCurve(): EquityPoint[] {
+    const rows = this.db
+      .prepare("SELECT payload FROM equity_points ORDER BY timestamp ASC")
+      .all() as { payload: string }[];
+    return rows.map((r) => JSON.parse(r.payload) as EquityPoint);
+  }
+
+  saveAccountState(state: AccountState): void {
+    this.db
+      .prepare("INSERT OR REPLACE INTO account_state (id, payload) VALUES (1, ?)")
+      .run(JSON.stringify(state));
+  }
+
+  getAccountState(): AccountState | null {
+    const row = this.db.prepare("SELECT payload FROM account_state WHERE id = 1").get() as
+      | { payload: string }
+      | undefined;
+    return row ? (JSON.parse(row.payload) as AccountState) : null;
+  }
+
+  saveRunnerState(state: RunnerState): void {
+    this.db
+      .prepare("INSERT OR REPLACE INTO runner_state (id, payload) VALUES (1, ?)")
+      .run(JSON.stringify(state));
+  }
+
+  getRunnerState(): RunnerState | null {
+    const row = this.db.prepare("SELECT payload FROM runner_state WHERE id = 1").get() as
+      | { payload: string }
+      | undefined;
+    return row ? (JSON.parse(row.payload) as RunnerState) : null;
+  }
+
+  saveSignal(capturedAt: number, scores: CoinScore[]): void {
+    this.db
+      .prepare("INSERT OR REPLACE INTO signals (captured_at, payload) VALUES (?, ?)")
+      .run(capturedAt, JSON.stringify(scores));
+  }
+
+  getLatestSignal(): { capturedAt: number; scores: CoinScore[] } | null {
+    const row = this.db
+      .prepare("SELECT captured_at, payload FROM signals ORDER BY captured_at DESC LIMIT 1")
+      .get() as { captured_at: number; payload: string } | undefined;
+    if (!row) return null;
+    return { capturedAt: row.captured_at, scores: JSON.parse(row.payload) as CoinScore[] };
   }
 
   close(): void {
