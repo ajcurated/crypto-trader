@@ -12,10 +12,14 @@ describe("SqliteDatastore", () => {
     const store = new SqliteDatastore(":memory:");
     store.init();
 
-    const snap: MarketSnapshot = { capturedAt: 1717200000000, universe: [ctx("ETH", 3), ctx("BTC", 1)] };
+    const eth = ctx("ETH", 3);
+    eth.midPx = null; // exercise the nullable midPx round-trip
+    const snap: MarketSnapshot = { capturedAt: 1717200000000, universe: [eth, ctx("BTC", 1)] };
     store.saveMarketSnapshot(snap);
 
-    expect(store.getLatestSnapshot()).toEqual(snap);
+    const got = store.getLatestSnapshot();
+    expect(got).toEqual(snap);
+    expect(got?.universe[0]?.midPx).toBeNull();
     store.close();
   });
 
