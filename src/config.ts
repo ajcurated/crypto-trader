@@ -1,5 +1,6 @@
 import type { SignalParams } from "./core/signal/index.js";
 import type { PaperParams } from "./core/paper/index.js";
+import type { RiskParams } from "./core/risk/index.js";
 
 export interface Config {
   universeSize: number;
@@ -9,6 +10,7 @@ export interface Config {
   dbPath: string;
   signal: SignalParams;
   paper: PaperParams;
+  risk: RiskParams;
 }
 
 export const DEFAULT_CONFIG: Config = {
@@ -19,6 +21,7 @@ export const DEFAULT_CONFIG: Config = {
   dbPath: "crypto-markets.sqlite",
   signal: { lookbacks: [30, 60], quintileFraction: 0.2, grossExposure: 1.0, hysteresisBuffer: 1 },
   paper: { feeRate: 0.00045, slippageCoeff: 0.1, maxSlippage: 0.02 },
+  risk: { spreadStopPct: 0.08, circuitBreakerBand: 0.15, fundingAlertAnnualized: 0.5 },
 };
 
 /** Read an optional positive number from env, falling back to a default. */

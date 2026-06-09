@@ -66,9 +66,29 @@ export class PaperAccount {
       if (price === undefined) continue;
       target.set(coin, targetSignedSize(weight, equity, price));
     }
+    return this.executeOrders(ordersToReach(this.signedSizes(), target), prices, recentVolumes);
+  }
 
+  /** Close the given coins (if held and priced) at the current mark. */
+  flatten(coins: string[], prices: Map<string, number>, recentVolumes: Map<string, number>): Fill[] {
+    const orders: { coin: string; deltaSize: number }[] = [];
+    for (const coin of coins) {
+      const pos = this.positionsByCoin.get(coin);
+      if (pos && pos.size !== 0 && prices.get(coin) !== undefined) {
+        orders.push({ coin, deltaSize: -pos.size });
+      }
+    }
+    return this.executeOrders(orders, prices, recentVolumes);
+  }
+
+  /** Apply a set of signed orders as fee/slippage-adjusted fills. */
+  private executeOrders(
+    orders: { coin: string; deltaSize: number }[],
+    prices: Map<string, number>,
+    recentVolumes: Map<string, number>,
+  ): Fill[] {
     const fills: Fill[] = [];
-    for (const order of ordersToReach(this.signedSizes(), target)) {
+    for (const order of orders) {
       const mark = prices.get(order.coin);
       // A held coin that fell out of the priced universe can't be traded this
       // tick — leave the position untouched rather than fill at an undefined

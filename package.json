@@ -9,7 +9,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "run:tick": "tsx src/cli.ts run",
-    "report": "tsx src/cli.ts report"
+    "report": "tsx src/cli.ts report",
+    "watch": "tsx src/cli.ts watch"
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1",
