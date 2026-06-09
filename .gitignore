@@ -3,3 +3,5 @@ dist/
 .env
 *.sqlite
 *.db
+*.sqlite-journal
+.claude/
