@@ -40,11 +40,15 @@ export async function runDailyCycle(deps: RunnerDeps): Promise<EquityPoint> {
   const prices = new Map(universe.map((c) => [c.name, c.markPx]));
   const volumes = new Map(universe.map((c) => [c.name, c.dayNtlVlm]));
 
-  // 2. Candles -> closes.
+  // 2. Candles -> closes (tolerate a per-coin fetch failure).
   const closesByCoin = new Map<string, number[]>();
   for (const c of universe) {
-    const candles = await data.getDailyCandles(c.name, config.candleHistoryDays);
-    closesByCoin.set(c.name, closesFromCandles(candles));
+    try {
+      const candles = await data.getDailyCandles(c.name, config.candleHistoryDays);
+      closesByCoin.set(c.name, closesFromCandles(candles));
+    } catch {
+      // skip this coin for the run; it'll be excluded from the signal
+    }
   }
 
   // 3. Restore account + current book.
@@ -66,8 +70,12 @@ export async function runDailyCycle(deps: RunnerDeps): Promise<EquityPoint> {
   // 5. Signal (saved every tick for reporting).
   const { scores, book } = buildTargetBook(closesByCoin, config.signal, current);
 
-  // 6. Rebalance on cadence (or first ever).
-  const shouldRebalance = !runner || runner.lastRebalanceAt === 0 || now - runner.lastRebalanceAt >= config.rebalanceIntervalDays * DAY;
+  // 6. Rebalance on cadence — but skip on stale/incomplete data (spec §10):
+  //    only trade when enough coins have usable history (scores covers eligible
+  //    coins only). On a skip we keep the existing book and just mark.
+  const dueToRebalance = !runner || runner.lastRebalanceAt === 0 || now - runner.lastRebalanceAt >= config.rebalanceIntervalDays * DAY;
+  const dataFresh = scores.length >= config.minUniverseForRebalance;
+  const shouldRebalance = dueToRebalance && dataFresh;
   if (shouldRebalance) account.rebalance(weightsFromBook(book), prices, volumes);
 
   // 7. Mark + persist atomically (equity, account, runner, signal commit together).
@@ -78,7 +86,7 @@ export async function runDailyCycle(deps: RunnerDeps): Promise<EquityPoint> {
     store.saveAccountState(account.toState());
     store.saveRunnerState({
       lastMarkAt: now,
-      lastRebalanceAt: shouldRebalance ? now : (runner?.lastRebalanceAt ?? now),
+      lastRebalanceAt: shouldRebalance ? now : (runner?.lastRebalanceAt ?? 0),
     });
   });
   return point;

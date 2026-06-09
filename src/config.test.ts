@@ -18,4 +18,17 @@ describe("loadConfig", () => {
   it("includes risk defaults", () => {
     expect(loadConfig({}).risk).toEqual({ spreadStopPct: 0.08, circuitBreakerBand: 0.15, fundingAlertAnnualized: 0.5 });
   });
+  it("defaults minUniverseForRebalance to 6", () => {
+    expect(loadConfig({}).minUniverseForRebalance).toBe(6);
+  });
+  it("overrides risk thresholds and the rebalance floor from env", () => {
+    const cfg = loadConfig({
+      SPREAD_STOP_PCT: "0.05",
+      CIRCUIT_BREAKER_BAND: "0.2",
+      FUNDING_ALERT_ANNUALIZED: "1",
+      MIN_UNIVERSE_FOR_REBALANCE: "10",
+    });
+    expect(cfg.risk).toEqual({ spreadStopPct: 0.05, circuitBreakerBand: 0.2, fundingAlertAnnualized: 1 });
+    expect(cfg.minUniverseForRebalance).toBe(10);
+  });
 });
