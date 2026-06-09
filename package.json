@@ -11,7 +11,8 @@
     "run:tick": "tsx src/cli.ts run",
     "report": "tsx src/cli.ts report",
     "watch": "tsx src/cli.ts watch",
-    "daemon": "tsx src/cli.ts daemon"
+    "daemon": "tsx src/cli.ts daemon",
+    "backtest": "tsx src/cli.ts backtest"
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1",
