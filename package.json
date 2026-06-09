@@ -7,7 +7,9 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "run:tick": "tsx src/cli.ts run",
+    "report": "tsx src/cli.ts report"
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1",
