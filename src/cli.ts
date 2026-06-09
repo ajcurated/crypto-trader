@@ -85,6 +85,11 @@ async function main(): Promise<void> {
           }
         } catch { /* skip flaky coin */ }
       }
+      if (rawCloses.size === 0) {
+        console.error("backtest: no candle data fetched (all coins failed) — aborting.");
+        process.exitCode = 1;
+        return;
+      }
       const L = Math.min(...[...rawCloses.values()].map((a) => a.length));
       const coins = [...rawCloses.keys()];
       const closesByCoin = new Map(coins.map((c) => [c, rawCloses.get(c)!.slice(-L)]));
