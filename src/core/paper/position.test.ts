@@ -50,4 +50,11 @@ describe("applyTrade", () => {
     expect(out.position.entry).toBeCloseTo(96.6666667, 6);
     expect(out.realized).toBe(0);
   });
+
+  it("is a no-op for a zero-quantity trade (no NaN entry from flat)", () => {
+    expect(applyTrade({ size: 0, entry: 0 }, 0, 100)).toEqual({
+      position: { size: 0, entry: 0 },
+      realized: 0,
+    });
+  });
 });

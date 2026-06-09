@@ -16,6 +16,7 @@ export interface TradeResult {
  * opens the remainder at `fill`.
  */
 export function applyTrade(pos: SignedPosition, dq: number, fill: number): TradeResult {
+  if (dq === 0) return { position: pos, realized: 0 }; // no-op trade; keep total/NaN-free
   const q = pos.size;
 
   // Opening from flat, or adding in the same direction.
