@@ -59,4 +59,20 @@ describe("buildTargetBook", () => {
     const { book } = buildTargetBook(c, PARAMS);
     expect(book.positions).toEqual([]);
   });
+
+  it("clamps the buffer so no coin is both long and short on a tiny universe", () => {
+    const c = new Map<string, number[]>([
+      ["UP", [100, 130, 170]],
+      ["DN", [100, 70, 50]],
+    ]);
+    // Large buffer + a current book claiming both coins on both sides would,
+    // without the clamp, put each coin long AND short. The clamp forces buffer 0.
+    const params = { ...PARAMS, hysteresisBuffer: 5 };
+    const { book } = buildTargetBook(c, params, { longs: ["UP", "DN"], shorts: ["UP", "DN"] });
+    const longs = book.positions.filter((p) => p.side === "long").map((p) => p.coin);
+    const shorts = book.positions.filter((p) => p.side === "short").map((p) => p.coin);
+    expect(longs.filter((x) => shorts.includes(x))).toEqual([]);
+    expect(longs).toEqual(["UP"]);
+    expect(shorts).toEqual(["DN"]);
+  });
 });
