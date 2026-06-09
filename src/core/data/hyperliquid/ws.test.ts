@@ -51,7 +51,7 @@ describe("ReconnectingWs", () => {
     expect(seen).toEqual([{ channel: "activeAssetCtx", data: { coin: "BTC" } }]);
   });
 
-  it("reconnects with exponential backoff", () => {
+  it("escalates backoff exponentially while it cannot reconnect", () => {
     vi.useFakeTimers();
     const { sockets, factory } = setup();
     const statuses: string[] = [];
@@ -60,21 +60,49 @@ describe("ReconnectingWs", () => {
       onStatus: (s) => statuses.push(s),
     });
     ws.start();
-    sockets[0]!.fireOpen();
+    sockets[0]!.fireOpen(); // connected -> backoff counter at 0
 
-    // 1st drop -> wait 1s
+    // 1st drop -> wait exactly 1s (2^0)
     sockets[0]!.fireClose();
     expect(sockets).toHaveLength(1);
     vi.advanceTimersByTime(999); expect(sockets).toHaveLength(1);
     vi.advanceTimersByTime(1);   expect(sockets).toHaveLength(2);
 
-    // 2nd drop -> wait 2s
-    sockets[1]!.fireOpen();
+    // socket[1] never opens (can't establish) -> next wait is 2s (2^1)
     sockets[1]!.fireClose();
-    vi.advanceTimersByTime(2000); expect(sockets).toHaveLength(3);
+    vi.advanceTimersByTime(1999); expect(sockets).toHaveLength(2);
+    vi.advanceTimersByTime(1);    expect(sockets).toHaveLength(3);
+
+    // still can't establish -> next wait is 4s (2^2)
+    sockets[2]!.fireClose();
+    vi.advanceTimersByTime(3999); expect(sockets).toHaveLength(3);
+    vi.advanceTimersByTime(1);    expect(sockets).toHaveLength(4);
 
     expect(statuses).toContain("connected");
     expect(statuses).toContain("reconnecting");
+    vi.useRealTimers();
+  });
+
+  it("resets backoff to 1s after a successful open (fast recovery)", () => {
+    vi.useFakeTimers();
+    const { sockets, factory } = setup();
+    const ws = new ReconnectingWs({ url: "ws://x", coins: ["BTC"], factory });
+    ws.start();
+
+    // Climb the backoff via two failed connects: 1s then 2s.
+    sockets[0]!.fireClose();
+    vi.advanceTimersByTime(1000); // -> socket[1]
+    sockets[1]!.fireClose();
+    vi.advanceTimersByTime(2000); // -> socket[2]
+    expect(sockets).toHaveLength(3);
+
+    // socket[2] opens successfully, resetting the backoff counter.
+    sockets[2]!.fireOpen();
+
+    // A subsequent drop now backs off only 1s again, not 4s.
+    sockets[2]!.fireClose();
+    vi.advanceTimersByTime(999); expect(sockets).toHaveLength(3);
+    vi.advanceTimersByTime(1);   expect(sockets).toHaveLength(4);
     vi.useRealTimers();
   });
 

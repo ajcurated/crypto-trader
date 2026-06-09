@@ -62,6 +62,12 @@ export class ReconnectingWs {
     this.sock = s;
 
     s.onopen = () => {
+      // Reset backoff on a successful open: a cleanly-established connection that
+      // later drops should recover fast (1s), which is what a risk feed wants.
+      // Trade-off: a connection that opens then immediately drops retries at the
+      // 1s floor rather than escalating. Acceptable for v1 — the floor prevents a
+      // busy loop, and full exponential escalation still applies while we can't
+      // even establish a connection (see scheduleReconnect).
       this.attempt = 0;
       this.o.onStatus?.("connected");
       for (const coin of this.o.coins) {
@@ -77,7 +83,9 @@ export class ReconnectingWs {
     };
     s.onerror = (err) => this.o.onError?.(err);
     s.onclose = () => {
-      if (this.stopped) return;
+      // Ignore a close from a socket we've already replaced or stopped, so a
+      // stale handler can never schedule a spurious second reconnect.
+      if (this.stopped || this.sock !== s) return;
       this.scheduleReconnect();
     };
   }
@@ -85,7 +93,6 @@ export class ReconnectingWs {
   private scheduleReconnect(): void {
     const delay = Math.min(this.o.baseBackoffMs * 2 ** this.attempt, this.o.maxBackoffMs);
     this.attempt += 1;
-    this.o.onStatus?.("reconnecting");
     this.o.schedule(() => {
       if (!this.stopped) this.connect();
     }, delay);
