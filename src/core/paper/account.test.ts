@@ -62,4 +62,20 @@ describe("PaperAccount", () => {
     expect(point.fundingPnl).toBeCloseTo(-10, 6);
     expect(point.equity).toBeCloseTo(99_945, 6);
   });
+
+  it("preserves the equity = initial + price + funding - fees identity across a full cycle", () => {
+    // Non-zero slippage + a second rebalance that partially realizes, fully
+    // closes a leg, and opens a fresh one — the identity must still hold exactly.
+    const acct = new PaperAccount(100_000, { feeRate: 0.00045, slippageCoeff: 0.1, maxSlippage: 0.02 });
+    const vols = new Map([["BTC", 5e8], ["ETH", 5e8], ["SOL", 5e8]]);
+
+    acct.rebalance(new Map([["BTC", 0.5], ["ETH", -0.5]]), prices({ BTC: 100, ETH: 50 }), vols);
+    acct.accrueFunding(new Map([["BTC", 0.0003], ["ETH", -0.0001]]), prices({ BTC: 108, ETH: 48 }));
+    // Price move, then rotate: keep BTC (resized), close ETH, open SOL short.
+    acct.rebalance(new Map([["BTC", 0.5], ["SOL", -0.5]]), prices({ BTC: 108, ETH: 48, SOL: 20 }), vols);
+
+    const point = acct.mark(prices({ BTC: 112, ETH: 48, SOL: 19 }), 3_000);
+    expect(point.equity).toBeCloseTo(100_000 + point.pricePnl + point.fundingPnl - point.fees, 6);
+    expect(acct.positions().map((p) => p.coin).sort()).toEqual(["BTC", "SOL"]); // ETH closed
+  });
 });

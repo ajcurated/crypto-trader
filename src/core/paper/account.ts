@@ -27,15 +27,21 @@ export class PaperAccount {
     return out;
   }
 
-  equity(prices: Map<string, number>): number {
-    let unrealized = 0;
+  /** Unrealized price PnL across open positions. Single source of truth so the
+   *  `equity = initial + pricePnl + funding − fees` identity can never drift. */
+  private unrealized(prices: Map<string, number>): number {
+    let total = 0;
     for (const [coin, pos] of this.positionsByCoin) {
       if (pos.size === 0) continue;
       const mark = prices.get(coin);
       if (mark === undefined) continue;
-      unrealized += pos.size * (mark - pos.entry);
+      total += pos.size * (mark - pos.entry);
     }
-    return this.cash + unrealized;
+    return total;
+  }
+
+  equity(prices: Map<string, number>): number {
+    return this.cash + this.unrealized(prices);
   }
 
   positions(): Position[] {
@@ -101,17 +107,10 @@ export class PaperAccount {
   }
 
   mark(prices: Map<string, number>, timestamp: number): EquityPoint {
-    const equity = this.equity(prices);
-    let unrealized = 0;
-    for (const [coin, pos] of this.positionsByCoin) {
-      if (pos.size === 0) continue;
-      const mark = prices.get(coin);
-      if (mark === undefined) continue;
-      unrealized += pos.size * (mark - pos.entry);
-    }
+    const unrealized = this.unrealized(prices);
     return {
       timestamp,
-      equity,
+      equity: this.cash + unrealized,
       pricePnl: this.realizedPricePnl + unrealized,
       fundingPnl: this.fundingPnl,
       fees: this.feesPaid,
