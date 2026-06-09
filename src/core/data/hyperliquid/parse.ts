@@ -1,5 +1,5 @@
 import { num } from "./http.js";
-import type { AssetContext, Candle } from "../types.js";
+import type { AssetContext, Candle, FundingPoint } from "../types.js";
 
 interface RawPerpInfo { name: string; szDecimals: number; maxLeverage: number }
 interface RawCtx {
@@ -50,5 +50,16 @@ export function parseCandles(raw: unknown): Candle[] {
     close: num(k.c),
     volume: num(k.v),
     trades: k.n,
+  }));
+}
+
+interface RawFunding { coin: string; fundingRate: string; premium: string; time: number }
+
+/** Parse a `fundingHistory` response into FundingPoints, oldest-first. */
+export function parseFunding(raw: unknown): FundingPoint[] {
+  return (raw as RawFunding[]).map((f) => ({
+    coin: f.coin,
+    rate: num(f.fundingRate),
+    time: f.time,
   }));
 }
