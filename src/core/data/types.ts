@@ -1,10 +1,3 @@
-/** Static per-perp metadata from HL `meta.universe`. */
-export interface PerpInfo {
-  name: string;
-  szDecimals: number;
-  maxLeverage: number;
-}
-
 /**
  * Live context for one perp. Numbers are parsed from HL's string fields.
  * `dayNtlVlm` is 24h notional (USD) volume — our universe ranking key.

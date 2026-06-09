@@ -29,6 +29,11 @@ function ctxToAssetContext(name: string, ctx: RawCtx): AssetContext {
 /** Parse `metaAndAssetCtxs`, returning top `topN` perps sorted desc by 24h volume. */
 export function parseUniverse(raw: unknown, topN: number): AssetContext[] {
   const [meta, ctxs] = raw as [{ universe: RawPerpInfo[] }, RawCtx[]];
+  if (meta.universe.length !== ctxs.length) {
+    throw new Error(
+      `HL metaAndAssetCtxs length mismatch: ${meta.universe.length} universe vs ${ctxs.length} contexts`,
+    );
+  }
   const out = meta.universe.map((info, i) => ctxToAssetContext(info.name, ctxs[i]!));
   out.sort((a, b) => b.dayNtlVlm - a.dayNtlVlm);
   return out.slice(0, topN);
