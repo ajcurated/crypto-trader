@@ -552,8 +552,8 @@ describe("buildTargetBook", () => {
     const longs = book.positions.filter((p) => p.side === "long").map((p) => p.coin);
     const shorts = book.positions.filter((p) => p.side === "short").map((p) => p.coin);
 
-    expect(longs).toEqual(["UP1", "UP2"]); // n=6, k=floor(6*0.2)=1 -> see below
-    expect(shorts).toEqual(["DN2", "DN1"]);
+    expect(longs).toEqual(["UP1"]); // n=6, k=floor(6*0.2)=1 -> one name per side
+    expect(shorts).toEqual(["DN2"]);
   });
 
   it("excludes coins with insufficient price history", () => {
@@ -574,16 +574,16 @@ describe("buildTargetBook", () => {
   it("applies hysteresis against the supplied current book", () => {
     // With k=1 the plain longs would be just UP1; an incumbent UP2 within the
     // top (k+buffer)=2 is retained, giving two longs.
-    const { book } = buildTargetBook(closes(), PARAMS, { longs: ["UP1", "UP2"], shorts: ["DN2", "DN1"] });
+    const { book } = buildTargetBook(closes(), PARAMS, { longs: ["UP1", "UP2"], shorts: ["DN1", "DN2"] });
     const longs = book.positions.filter((p) => p.side === "long").map((p) => p.coin);
     const shorts = book.positions.filter((p) => p.side === "short").map((p) => p.coin);
     expect(longs).toEqual(["UP1", "UP2"]);
-    expect(shorts).toEqual(["DN2", "DN1"]);
+    expect(shorts).toEqual(["DN1", "DN2"]); // rank order (DN1 ranks above DN2)
   });
 });
 ```
 
-> **Note for the implementer:** with `n=6` and `quintileFraction=0.2`, `perSideCount = floor(1.2) = 1`. So the first test's plain (no-current-book) selection yields `longs=["UP1"]`, `shorts=["DN2"]` — NOT two per side. **Adjust the first test's expectations to `longs == ["UP1"]` and `shorts == ["DN2"]`** when you write it, OR pass `quintileFraction: 0.34` (floor(2.04)=2) if you intend two per side. Pick one and make the test self-consistent; do not leave it contradictory. The recommended fix: keep `quintileFraction: 0.2`, expect `longs=["UP1"]`, `shorts=["DN2"]` for the no-current-book case, since the hysteresis test already exercises the two-per-side path. Confirm the ranking `UP1 > UP2 > MIDA/MIDB > DN1 > DN2` holds by reasoning about risk-adjusted momentum before locking expected values; if MIDA/MIDB ordering is sensitive, only assert the longs/shorts endpoints (UP1 / DN2), not the middle.
+> **Note:** with `n=6` and `quintileFraction=0.2`, `perSideCount = floor(1.2) = 1` — one name per side in the cold-start case (`longs=["UP1"]`, `shorts=["DN2"]`); the hysteresis test exercises the two-per-side retention path. The risk-adjusted-momentum ranking of the fixture is `UP1 > UP2 > MIDA > MIDB > DN1 > DN2`; only the endpoints (UP1 / DN2) are asserted for longs/shorts so the middle ordering isn't brittle. Hysteresis outputs are rank-ordered, so the warm-book shorts come back as `["DN1","DN2"]`, not `["DN2","DN1"]`.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -628,8 +628,15 @@ export function buildTargetBook(
 
   const scores = compositeScores(eligible, params.lookbacks);
   const ranked = [...scores].sort((a, b) => b.score - a.score);
+  if (ranked.length < 2) return { scores: ranked, book: { positions: [] } };
+
   const k = perSideCount(ranked.length, params.quintileFraction);
-  const sides = applyHysteresis(ranked, k, params.hysteresisBuffer, current);
+  // Clamp the hysteresis buffer so the long/short hold-zones never overlap
+  // (needs k + buffer <= floor(n/2)); on a small universe this shrinks the
+  // buffer rather than letting a coin be selected both long and short.
+  const maxBuffer = Math.max(0, Math.floor(ranked.length / 2) - k);
+  const buffer = Math.min(params.hysteresisBuffer, maxBuffer);
+  const sides = applyHysteresis(ranked, k, buffer, current);
   const book = weightBook(sides, params.grossExposure);
   return { scores: ranked, book };
 }
