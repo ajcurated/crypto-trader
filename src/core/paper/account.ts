@@ -1,4 +1,4 @@
-import type { Fill, EquityPoint, PaperParams, Position, Side } from "./types.js";
+import type { Fill, EquityPoint, PaperParams, Position, Side, AccountState } from "./types.js";
 import { feeFor, slippageFraction, fillPrice } from "./fills.js";
 import { applyTrade, type SignedPosition } from "./position.js";
 import { fundingPayment } from "./funding.js";
@@ -69,7 +69,11 @@ export class PaperAccount {
 
     const fills: Fill[] = [];
     for (const order of ordersToReach(this.signedSizes(), target)) {
-      const mark = prices.get(order.coin)!;
+      const mark = prices.get(order.coin);
+      // A held coin that fell out of the priced universe can't be traded this
+      // tick — leave the position untouched rather than fill at an undefined
+      // price (which would NaN-poison cash and entry).
+      if (mark === undefined) continue;
       const slip = slippageFraction(
         order.deltaSize * mark,
         recentVolumes.get(order.coin) ?? 0,
@@ -115,5 +119,32 @@ export class PaperAccount {
       fundingPnl: this.fundingPnl,
       fees: this.feesPaid,
     };
+  }
+
+  /** Serialize the full account state for persistence. */
+  toState(): AccountState {
+    const positions: { coin: string; size: number; entry: number }[] = [];
+    for (const [coin, pos] of this.positionsByCoin) {
+      if (pos.size !== 0) positions.push({ coin, size: pos.size, entry: pos.entry });
+    }
+    return {
+      initialCapital: this.initialCapital,
+      cash: this.cash,
+      positions,
+      realizedPricePnl: this.realizedPricePnl,
+      feesPaid: this.feesPaid,
+      fundingPnl: this.fundingPnl,
+    };
+  }
+
+  /** Reconstruct an account from a persisted state. */
+  static fromState(state: AccountState, params: PaperParams): PaperAccount {
+    const acct = new PaperAccount(state.initialCapital, params);
+    acct.cash = state.cash;
+    acct.realizedPricePnl = state.realizedPricePnl;
+    acct.feesPaid = state.feesPaid;
+    acct.fundingPnl = state.fundingPnl;
+    for (const p of state.positions) acct.positionsByCoin.set(p.coin, { size: p.size, entry: p.entry });
+    return acct;
   }
 }
