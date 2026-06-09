@@ -1,5 +1,5 @@
 import { num } from "./http.js";
-import type { AssetContext } from "../types.js";
+import type { AssetContext, Candle } from "../types.js";
 
 interface RawPerpInfo { name: string; szDecimals: number; maxLeverage: number }
 interface RawCtx {
@@ -31,4 +31,24 @@ export function parseUniverse(raw: unknown, topN: number): AssetContext[] {
   const out = meta.universe.map((info, i) => toCtx(info, ctxs[i]!));
   out.sort((a, b) => b.dayNtlVlm - a.dayNtlVlm);
   return out.slice(0, topN);
+}
+
+interface RawCandle {
+  t: number; T: number; s: string;
+  o: string; h: string; l: string; c: string; v: string; n: number;
+}
+
+/** Parse a `candleSnapshot` response, oldest-first (as HL returns it). */
+export function parseCandles(raw: unknown): Candle[] {
+  return (raw as RawCandle[]).map((k) => ({
+    coin: k.s,
+    openTime: k.t,
+    closeTime: k.T,
+    open: num(k.o),
+    high: num(k.h),
+    low: num(k.l),
+    close: num(k.c),
+    volume: num(k.v),
+    trades: k.n,
+  }));
 }
