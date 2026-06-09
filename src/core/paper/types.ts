@@ -35,3 +35,14 @@ export interface PaperParams {
   /** Hard cap on the slippage fraction for a single fill. */
   maxSlippage: number;
 }
+
+/** Serializable snapshot of a PaperAccount, for persistence and resume. */
+export interface AccountState {
+  initialCapital: number;
+  cash: number;
+  /** Signed positions (size > 0 long, < 0 short). */
+  positions: { coin: string; size: number; entry: number }[];
+  realizedPricePnl: number;
+  feesPaid: number;
+  fundingPnl: number;
+}
