@@ -75,4 +75,19 @@ describe("applyHysteresis", () => {
     expect(sides.shorts).toEqual(["E", "D", "F"]);
     expect(sides.longs).toEqual(["A", "B"]);
   });
+
+  it("drops a short incumbent that rose past the buffer zone", () => {
+    // E rose to rank 3 (index 2), outside the bottom hold-zone {C,D,F} -> dropped.
+    const r = ranked(["A", "B", "E", "C", "D", "F"]);
+    const sides = applyHysteresis(r, 2, 1, { longs: ["A", "B"], shorts: ["E", "F"] });
+    expect(sides.shorts).toEqual(["D", "F"]);
+    expect(sides.longs).toEqual(["A", "B"]);
+  });
+
+  it("ignores incumbent names no longer present in the ranking", () => {
+    const r = ranked(["A", "B", "C", "D", "E", "F"]);
+    const sides = applyHysteresis(r, 2, 1, { longs: ["A", "GONE"], shorts: [] });
+    expect(sides.longs).toEqual(["A", "B"]);
+    expect(sides.shorts).toEqual(["E", "F"]);
+  });
 });
