@@ -12,9 +12,10 @@ interface RawCtx {
   openInterest: string;
 }
 
-function toCtx(info: RawPerpInfo, ctx: RawCtx): AssetContext {
+/** Single translation point for raw HL context fields -> AssetContext. */
+function ctxToAssetContext(name: string, ctx: RawCtx): AssetContext {
   return {
-    name: info.name,
+    name,
     dayNtlVlm: num(ctx.dayNtlVlm),
     funding: num(ctx.funding),
     markPx: num(ctx.markPx),
@@ -28,7 +29,7 @@ function toCtx(info: RawPerpInfo, ctx: RawCtx): AssetContext {
 /** Parse `metaAndAssetCtxs`, returning top `topN` perps sorted desc by 24h volume. */
 export function parseUniverse(raw: unknown, topN: number): AssetContext[] {
   const [meta, ctxs] = raw as [{ universe: RawPerpInfo[] }, RawCtx[]];
-  const out = meta.universe.map((info, i) => toCtx(info, ctxs[i]!));
+  const out = meta.universe.map((info, i) => ctxToAssetContext(info.name, ctxs[i]!));
   out.sort((a, b) => b.dayNtlVlm - a.dayNtlVlm);
   return out.slice(0, topN);
 }
@@ -73,15 +74,5 @@ interface WsCtxMessage {
 export function parseWsCtx(msg: unknown): AssetContext | null {
   const m = msg as WsCtxMessage;
   if (m.channel !== "activeAssetCtx" || !m.data) return null;
-  const c = m.data.ctx;
-  return {
-    name: m.data.coin,
-    dayNtlVlm: num(c.dayNtlVlm),
-    funding: num(c.funding),
-    markPx: num(c.markPx),
-    midPx: c.midPx === null ? null : num(c.midPx),
-    oraclePx: num(c.oraclePx),
-    prevDayPx: num(c.prevDayPx),
-    openInterest: num(c.openInterest),
-  };
+  return ctxToAssetContext(m.data.coin, m.data.ctx);
 }
