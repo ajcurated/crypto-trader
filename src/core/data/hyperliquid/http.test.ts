@@ -2,13 +2,15 @@ import { describe, it, expect, vi } from "vitest";
 import { num, postInfo } from "./http.js";
 
 describe("num", () => {
-  it("parses numeric strings", () => {
+  it("parses numeric strings, including scientific notation", () => {
     expect(num("65000.5")).toBe(65000.5);
     expect(num("0")).toBe(0);
+    expect(num("1.5e3")).toBe(1500);
   });
   it("throws on non-numeric input", () => {
     expect(() => num("abc")).toThrow(/not a number/);
     expect(() => num(undefined)).toThrow(/not a number/);
+    expect(() => num(null)).toThrow(/not a number/);
   });
 });
 
