@@ -126,4 +126,33 @@ describe("runDailyCycle", () => {
     expect(store.getRunnerState()!.lastRebalanceAt).toBe(0);
     store.close();
   });
+
+  it("vol-targets the live rebalance: turbulent equity history shrinks gross exposure", async () => {
+    const marks: Record<string, number> = { UP1: 170, UP2: 140, MID: 104, DN1: 75, DN2: 50, DN3: 40 };
+    const gross = (store: SqliteDatastore) =>
+      store.getAccountState()!.positions.reduce((s, p) => s + Math.abs(p.size) * marks[p.coin]!, 0);
+
+    function seeded() {
+      const store = new SqliteDatastore(":memory:");
+      store.init();
+      // A volatile equity history (huge swings) -> high realized vol -> de-risk.
+      [100_000, 80_000, 120_000, 75_000, 110_000, 90_000].forEach((eq, i) =>
+        store.saveEquityPoint({ timestamp: i * DAY, equity: eq, pricePnl: 0, fundingPnl: 0, fees: 0 }));
+      store.saveAccountState({ initialCapital: 100_000, cash: 100_000, positions: [], realizedPricePnl: 0, feesPaid: 0, fundingPnl: 0 });
+      store.saveRunnerState({ lastMarkAt: 5 * DAY, lastRebalanceAt: 0 });
+      return store;
+    }
+    const base: Config = { ...DEFAULT_CONFIG, universeSize: 6, candleHistoryDays: 70, rebalanceIntervalDays: 7, minUniverseForRebalance: 1 };
+
+    const on = seeded();
+    await runDailyCycle({ data: fakeData(), store: on, config: { ...base, volTarget: 0.25, maxLeverage: 1.5 }, now: 20 * DAY });
+    const off = seeded();
+    await runDailyCycle({ data: fakeData(), store: off, config: { ...base, volTarget: 0 }, now: 20 * DAY });
+
+    // With vol-targeting the gross is scaled far below ~1x NAV; without it ~1x.
+    expect(gross(on)).toBeLessThan(0.5 * gross(off));
+    expect(gross(off)).toBeGreaterThan(80_000); // ~1x of the ~100k NAV
+    on.close();
+    off.close();
+  });
 });

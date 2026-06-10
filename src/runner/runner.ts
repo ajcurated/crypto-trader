@@ -4,6 +4,7 @@ import type { EquityPoint } from "../core/paper/index.js";
 import type { Config } from "../config.js";
 import { buildTargetBook } from "../core/signal/index.js";
 import { PaperAccount } from "../core/paper/index.js";
+import { volTargetScale } from "../core/backtest/index.js";
 import { weightsFromBook, closesFromCandles, currentBookFromPositions, sumFundingSince } from "./adapters.js";
 
 const DAY = 86_400_000;
@@ -76,7 +77,18 @@ export async function runDailyCycle(deps: RunnerDeps): Promise<EquityPoint> {
   const dueToRebalance = !runner || runner.lastRebalanceAt === 0 || now - runner.lastRebalanceAt >= config.rebalanceIntervalDays * DAY;
   const dataFresh = scores.length >= config.minUniverseForRebalance;
   const shouldRebalance = dueToRebalance && dataFresh;
-  const fills = shouldRebalance ? account.rebalance(weightsFromBook(book), prices, volumes) : [];
+
+  // Vol-target: scale gross by recent realized vol of the equity curve so risk
+  // stays near config.volTarget (de-risk when turbulent). 0 disables.
+  let weights = weightsFromBook(book);
+  if (config.volTarget > 0) {
+    const recentPts = curve.slice(-config.volWindow);
+    const recent: number[] = [];
+    for (let i = 1; i < recentPts.length; i++) recent.push(recentPts[i]!.equity / recentPts[i - 1]!.equity - 1);
+    const scale = volTargetScale(recent, config.volTarget, config.maxLeverage);
+    weights = new Map([...weights].map(([c, w]) => [c, w * scale]));
+  }
+  const fills = shouldRebalance ? account.rebalance(weights, prices, volumes) : [];
 
   // 7. Mark + persist atomically (equity, account, runner, signal, trades commit together).
   const point = account.mark(prices, now);
