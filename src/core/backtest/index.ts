@@ -5,3 +5,6 @@ export type { BacktestInput, BacktestResult } from "./engine.js";
 export { runBacktest } from "./engine.js";
 export type { PreparedBacktest } from "./prepare.js";
 export { prepareBacktestData, fetchFundingFull } from "./prepare.js";
+export type { Strategy } from "./strategy.js";
+export type { WindowSpec, RobustnessRow, WalkForwardStep, WalkForwardEval } from "./walkforward.js";
+export { runWindow, rollingWindows, robustness, walkForward } from "./walkforward.js";
