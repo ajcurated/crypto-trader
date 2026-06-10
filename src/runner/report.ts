@@ -29,6 +29,15 @@ export function formatReport(store: Datastore): string {
     }
   }
 
+  const trades = store.getRecentTrades(5);
+  if (trades.length > 0) {
+    lines.push("--- recent trades ---");
+    for (const t of trades) {
+      const side = t.deltaSize >= 0 ? "buy " : "sell";
+      lines.push(`  ${side} ${t.coin.padEnd(6)} ${money(Math.abs(t.deltaSize))} @ ${money(t.fillPrice)}  (fee $${money(t.fee)})`);
+    }
+  }
+
   const signal = store.getLatestSignal();
   if (signal && signal.scores.length > 0) {
     const top = signal.scores[0]!;
