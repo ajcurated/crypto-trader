@@ -31,6 +31,14 @@ describe("buildTargetBook", () => {
     expect(shorts).toEqual(["DN2"]);
   });
 
+  it("reversion mode flips the book: long the loser, short the winner", () => {
+    const { book } = buildTargetBook(closes(), { ...PARAMS, mode: "reversion" });
+    const longs = book.positions.filter((p) => p.side === "long").map((p) => p.coin);
+    const shorts = book.positions.filter((p) => p.side === "short").map((p) => p.coin);
+    expect(longs).toEqual(["DN2"]); // long the weakest (bounce candidate)
+    expect(shorts).toEqual(["UP1"]); // short the strongest (pullback candidate)
+  });
+
   it("excludes coins with insufficient price history", () => {
     const c = closes();
     c.set("NEW", [100, 101]); // only 2 closes; lookback 2 needs 3 -> excluded

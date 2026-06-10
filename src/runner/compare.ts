@@ -66,6 +66,19 @@ export const STRATEGIES: Strategy[] = [
     volTarget: 0.25,
     maxLeverage: 1.5,
   },
+  {
+    name: "reversion",
+    description: "short-horizon MEAN-REVERSION: long recent losers, short winners (for choppy/reversal regimes)",
+    signal: { lookbacks: [3, 5], quintileFraction: 0.2, grossExposure: 1.0, hysteresisBuffer: 1, mode: "reversion" },
+    rebalanceEveryDays: 3,
+  },
+];
+
+/** A focused regime toolkit: one representative strategy per regime. */
+export const PLAYBOOK: Strategy[] = [
+  STRATEGIES.find((s) => s.name === "baseline")!,
+  STRATEGIES.find((s) => s.name === "reversion")!,
+  STRATEGIES.find((s) => s.name === "vol-target")!,
 ];
 
 /**

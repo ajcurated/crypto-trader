@@ -1,4 +1,4 @@
-import type { RobustnessRow, WalkForwardEval, RegimeBlock } from "../core/backtest/index.js";
+import type { RobustnessRow, WalkForwardEval, RegimeBlock, PlaybookRegime, RegimeNow } from "../core/backtest/index.js";
 
 const pad = (s: string, n: number) => s.padEnd(n);
 const padN = (s: string, n: number) => s.padStart(n);
@@ -73,5 +73,35 @@ export function formatWalkForward(wf: WalkForwardEval): string {
   }
   lines.push("");
   lines.push("picks per block: " + wf.steps.map((s) => s.chosen).join(" -> "));
+  return lines.join("\n");
+}
+
+/** The current-regime read: market state today + which strategy it favours. */
+export function formatRegimeNow(r: RegimeNow): string {
+  const lines: string[] = [];
+  lines.push(`=== current regime read (last ${r.lookbackDays} days) ===`);
+  lines.push(`  BTC return:        ${pct(r.btcReturn)}`);
+  lines.push(`  median coin:       ${pct(r.medianCoinReturn)}`);
+  lines.push(`  breadth (% up):    ${(r.breadthUp * 100).toFixed(0)}%`);
+  lines.push(`  dispersion (sd):   ${pct(r.dispersion)}`);
+  lines.push(`  BTC ann. vol:      ${pct(r.annualizedVol)}`);
+  lines.push(`  trend persistence: ${r.trendPersistence.toFixed(2)}  (>0 trends persist→momentum; <0 reverses→mean-reversion)`);
+  lines.push(`  -> ${r.suggestion}`);
+  return lines.join("\n");
+}
+
+/** Strategy × regime matrix: avg block return (win-rate) per regime. */
+export function formatPlaybook(rows: PlaybookRegime[]): string {
+  const strategies = rows[0]?.cells.map((c) => c.strategy) ?? [];
+  const lines: string[] = [];
+  lines.push(`=== strategy x regime playbook (avg block return, win-rate) ===`);
+  lines.push(`${pad("regime", 8)} ${pad("blocks", 7)} ${strategies.map((s) => padN(s, 16)).join(" ")}`);
+  lines.push("-".repeat(8 + 8 + strategies.length * 17));
+  for (const r of rows) {
+    const cells = r.cells.map((c) => padN(`${pct(c.avgReturn)} (${(c.winRate * 100).toFixed(0)}%)`, 16)).join(" ");
+    lines.push(`${pad(r.regime, 8)} ${pad(String(r.blocks), 7)} ${cells}`);
+  }
+  lines.push("");
+  lines.push("read: pick the strategy with the strongest avg return + win-rate for the regime you judge we're in.");
   return lines.join("\n");
 }
