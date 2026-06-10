@@ -15,6 +15,7 @@
     "backtest": "tsx src/cli.ts backtest",
     "compare": "tsx src/cli.ts compare",
     "evaluate": "tsx src/cli.ts evaluate",
+    "regimes": "tsx src/cli.ts regimes",
     "serve": "tsx src/cli.ts serve"
   },
   "dependencies": {
