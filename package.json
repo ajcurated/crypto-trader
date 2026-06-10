@@ -13,6 +13,7 @@
     "watch": "tsx src/cli.ts watch",
     "daemon": "tsx src/cli.ts daemon",
     "backtest": "tsx src/cli.ts backtest",
+    "compare": "tsx src/cli.ts compare",
     "serve": "tsx src/cli.ts serve"
   },
   "dependencies": {
