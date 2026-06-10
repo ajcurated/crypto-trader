@@ -11,6 +11,13 @@ import { formatRobustness, formatWalkForward, formatRegimes, formatRegimeNow, fo
 import { startDashboardServer } from "./dashboard/index.js";
 import { ConsoleNotifier, MultiNotifier, TelegramNotifier, type Notifier } from "./core/notify/index.js";
 
+/** Optional HTTP basic auth for the dashboard from env (DASHBOARD_USER/PASS). */
+function dashboardAuth(env: Record<string, string | undefined>): { auth?: { user: string; pass: string } } {
+  const user = env["DASHBOARD_USER"];
+  const pass = env["DASHBOARD_PASS"];
+  return user && pass ? { auth: { user, pass } } : {};
+}
+
 /** Build a notifier from env: always console, plus Telegram if creds are set. */
 function buildNotifier(env: Record<string, string | undefined>): Notifier {
   const notifiers: Notifier[] = [new ConsoleNotifier()];
@@ -142,13 +149,26 @@ async function main(): Promise<void> {
       console.log(formatPlaybook(regimePlaybook(prep, PLAYBOOK, cfg, { blockLen: Number(process.env["REGIME_BLOCK"] ?? 40) })));
     } else if (command === "serve") {
       const port = Number(process.env["PORT"] ?? 8080);
-      startDashboardServer(store, port);
+      startDashboardServer(store, port, dashboardAuth(process.env));
       console.log(`dashboard on http://localhost:${port} … (ctrl-c to stop)`);
       await new Promise<void>((resolve) => {
         process.on("SIGINT", () => resolve());
       });
+    } else if (command === "app") {
+      // One process: the daemon (daily cycle + streaming risk loop) AND the
+      // dashboard, with live mark-to-market wired in. The single deployable.
+      const port = Number(process.env["PORT"] ?? 8080);
+      const data = new HyperLiquidDataSource();
+      const notify = buildNotifier(process.env);
+      const daemon = new Daemon({ data, store, config, notify, now: () => Date.now(), schedule: (fn, ms) => void setInterval(fn, ms) });
+      await daemon.start();
+      startDashboardServer(store, port, { ...dashboardAuth(process.env), live: () => daemon.liveSnapshot() });
+      console.log(`app running: daemon + live dashboard on http://localhost:${port} … (ctrl-c to stop)`);
+      await new Promise<void>((resolve) => {
+        process.on("SIGINT", () => { daemon.stop(); resolve(); });
+      });
     } else {
-      console.error(`unknown command: ${command}\nusage: cli.ts [run|report|watch|daemon|backtest|compare|evaluate|regimes|playbook|serve]`);
+      console.error(`unknown command: ${command}\nusage: cli.ts [run|report|watch|daemon|backtest|compare|evaluate|regimes|playbook|serve|app]`);
       process.exitCode = 1;
     }
   } finally {

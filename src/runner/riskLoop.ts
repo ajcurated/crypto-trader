@@ -6,6 +6,13 @@ import type { RiskParams } from "../core/risk/index.js";
 import { PaperAccount } from "../core/paper/index.js";
 import { evaluateRisk } from "../core/risk/index.js";
 
+export interface LiveSnapshot {
+  asOf: number;
+  feed: string;
+  equity: number;
+  positions: { coin: string; side: "long" | "short"; size: number; entryPrice: number; mark: number; unrealizedPnl: number }[];
+}
+
 export interface RiskLoopDeps {
   data: MarketDataSource;
   store: Datastore;
@@ -48,6 +55,28 @@ export class RiskLoop {
   stop(): void {
     this.handle?.close();
     this.handle = null;
+  }
+
+  /** Whether the feed is currently connected. */
+  status(): string {
+    return this.handle ? this.handle.status() : "closed";
+  }
+
+  /**
+   * Live mark-to-market from the in-memory WS marks (not the daily store mark):
+   * current NAV + per-position unrealized P&L, for a real-time dashboard. Null
+   * if there's no open book yet.
+   */
+  liveSnapshot(): LiveSnapshot | null {
+    const state = this.deps.store.getAccountState();
+    if (!state || state.positions.length === 0) return null;
+    const account = PaperAccount.fromState(state, this.deps.paper);
+    const positions = account.positions().map((p) => {
+      const mark = this.marks.get(p.coin);
+      const unrealizedPnl = mark === undefined ? 0 : (p.side === "long" ? 1 : -1) * (mark - p.entryPrice) * p.size;
+      return { coin: p.coin, side: p.side, size: p.size, entryPrice: p.entryPrice, mark: mark ?? p.entryPrice, unrealizedPnl };
+    });
+    return { asOf: (this.deps.now ?? Date.now)(), feed: this.status(), equity: account.equity(this.marks), positions };
   }
 
   /** Resolve once any in-flight tick handling has settled (test hook). */

@@ -107,4 +107,22 @@ describe("RiskLoop", () => {
     loop.stop();
     store.close();
   });
+
+  it("liveSnapshot reports live NAV + per-position unrealized P&L from WS marks", async () => {
+    const store = seededStore(); // BTC long 10 @100, ETH short 20 @50, cash 1000
+    const { ds, push } = fakeData();
+    const loop = new RiskLoop(deps(store, ds));
+    loop.start();
+    push(ctx("BTC", 110)); // long +10/unit -> +100
+    push(ctx("ETH", 45));  // short, fell 5 -> +100
+    await loop.idle();
+
+    const snap = loop.liveSnapshot()!;
+    expect(snap.equity).toBeCloseTo(1200, 6); // 1000 cash + 100 + 100
+    const byCoin = Object.fromEntries(snap.positions.map((p) => [p.coin, p.unrealizedPnl]));
+    expect(byCoin["BTC"]).toBeCloseTo(100, 6);
+    expect(byCoin["ETH"]).toBeCloseTo(100, 6);
+    loop.stop();
+    store.close();
+  });
 });
