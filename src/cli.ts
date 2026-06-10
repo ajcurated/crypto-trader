@@ -6,6 +6,7 @@ import { formatReport } from "./runner/report.js";
 import { RiskLoop } from "./runner/riskLoop.js";
 import { Daemon } from "./runner/daemon.js";
 import { runBacktest, bucketFundingByDay } from "./core/backtest/index.js";
+import { startDashboardServer } from "./dashboard/index.js";
 import { ConsoleNotifier, MultiNotifier, TelegramNotifier, type Notifier } from "./core/notify/index.js";
 
 /** Page through HL funding history (500-point cap) until the window is covered. */
@@ -122,8 +123,15 @@ async function main(): Promise<void> {
       console.log(`Sharpe: ${m.sharpe.toFixed(2)}   ann.vol: ${pct(m.annualizedVol)}   maxDD: ${pct(m.maxDrawdown)}`);
       console.log(`funding P&L: $${result.fundingPnl.toFixed(2)}`);
       console.log(`final book: ${result.finalPositions.map((p) => `${p.side === "long" ? "+" : "-"}${p.coin}`).join(" ")}`);
+    } else if (command === "serve") {
+      const port = Number(process.env["PORT"] ?? 8080);
+      startDashboardServer(store, port);
+      console.log(`dashboard on http://localhost:${port} … (ctrl-c to stop)`);
+      await new Promise<void>((resolve) => {
+        process.on("SIGINT", () => resolve());
+      });
     } else {
-      console.error(`unknown command: ${command}\nusage: cli.ts [run|report|watch|daemon|backtest]`);
+      console.error(`unknown command: ${command}\nusage: cli.ts [run|report|watch|daemon|backtest|serve]`);
       process.exitCode = 1;
     }
   } finally {
