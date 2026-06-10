@@ -33,6 +33,8 @@ export function runWindow(prep: PreparedBacktest, strategy: Strategy, start: num
     rebalanceEveryDays: strategy.rebalanceEveryDays,
     warmupDays: start,
     initialCapital: cfg.initialCapital,
+    volTarget: strategy.volTarget,
+    maxLeverage: strategy.maxLeverage,
   });
 }
 
