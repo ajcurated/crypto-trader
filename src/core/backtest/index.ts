@@ -8,3 +8,5 @@ export { prepareBacktestData, fetchFundingFull } from "./prepare.js";
 export type { Strategy } from "./strategy.js";
 export type { WindowSpec, RobustnessRow, WalkForwardStep, WalkForwardEval } from "./walkforward.js";
 export { runWindow, rollingWindows, robustness, walkForward } from "./walkforward.js";
+export type { RegimeBlock } from "./regimes.js";
+export { analyzeRegimes } from "./regimes.js";
