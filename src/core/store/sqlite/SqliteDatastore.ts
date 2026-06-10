@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import type { Database as DB } from "better-sqlite3";
-import type { Datastore, MarketSnapshot, RunnerState } from "../Datastore.js";
-import type { EquityPoint, AccountState } from "../../paper/index.js";
+import type { Datastore, MarketSnapshot, RunnerState, Trade } from "../Datastore.js";
+import type { EquityPoint, AccountState, Fill } from "../../paper/index.js";
 import type { CoinScore } from "../../signal/index.js";
 import { migrate } from "./schema.js";
 
@@ -82,6 +82,18 @@ export class SqliteDatastore implements Datastore {
       .get() as { captured_at: number; payload: string } | undefined;
     if (!row) return null;
     return { capturedAt: row.captured_at, scores: JSON.parse(row.payload) as CoinScore[] };
+  }
+
+  saveTrades(timestamp: number, fills: Fill[]): void {
+    const stmt = this.db.prepare("INSERT INTO trades (timestamp, payload) VALUES (?, ?)");
+    for (const fill of fills) stmt.run(timestamp, JSON.stringify(fill));
+  }
+
+  getRecentTrades(limit: number): Trade[] {
+    const rows = this.db
+      .prepare("SELECT timestamp, payload FROM trades ORDER BY id DESC LIMIT ?")
+      .all(limit) as { timestamp: number; payload: string }[];
+    return rows.map((r) => ({ timestamp: r.timestamp, ...(JSON.parse(r.payload) as Fill) }));
   }
 
   transaction(fn: () => void): void {

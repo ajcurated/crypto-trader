@@ -1,5 +1,5 @@
 import type { AssetContext } from "../data/types.js";
-import type { EquityPoint, AccountState } from "../paper/index.js";
+import type { EquityPoint, AccountState, Fill } from "../paper/index.js";
 import type { CoinScore } from "../signal/index.js";
 
 /** Runner bookkeeping: when we last marked and last rebalanced (epoch ms). */
@@ -7,6 +7,9 @@ export interface RunnerState {
   lastMarkAt: number;
   lastRebalanceAt: number;
 }
+
+/** A persisted fill, stamped with the time it was executed. */
+export type Trade = Fill & { timestamp: number };
 
 /** A persisted point-in-time capture of the market (for reproducibility/backfill). */
 export interface MarketSnapshot {
@@ -43,6 +46,10 @@ export interface Datastore {
   saveSignal(capturedAt: number, scores: CoinScore[]): void;
   /** The most recently captured signal, or null. */
   getLatestSignal(): { capturedAt: number; scores: CoinScore[] } | null;
+  /** Append fills executed at `timestamp` to the trade log. */
+  saveTrades(timestamp: number, fills: Fill[]): void;
+  /** The most recent trades, newest first (up to `limit`). */
+  getRecentTrades(limit: number): Trade[];
   /** Run `fn` atomically: all writes inside commit together or not at all. */
   transaction(fn: () => void): void;
   /** Release underlying resources. */
