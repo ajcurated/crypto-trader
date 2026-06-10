@@ -5,8 +5,9 @@ import { runDailyCycle } from "./runner/runner.js";
 import { formatReport } from "./runner/report.js";
 import { RiskLoop } from "./runner/riskLoop.js";
 import { Daemon } from "./runner/daemon.js";
-import { runBacktest, prepareBacktestData } from "./core/backtest/index.js";
+import { runBacktest, prepareBacktestData, robustness, walkForward } from "./core/backtest/index.js";
 import { STRATEGIES, runComparison, formatComparison } from "./runner/compare.js";
+import { formatRobustness, formatWalkForward } from "./runner/evaluate.js";
 import { startDashboardServer } from "./dashboard/index.js";
 import { ConsoleNotifier, MultiNotifier, TelegramNotifier, type Notifier } from "./core/notify/index.js";
 
@@ -90,6 +91,26 @@ async function main(): Promise<void> {
       }
       const results = runComparison(prep, STRATEGIES, config);
       console.log(formatComparison(results, prep.closesByCoin.size));
+    } else if (command === "evaluate") {
+      const data = new HyperLiquidDataSource();
+      const days = Number(process.env["COMPARE_DAYS"] ?? 365);
+      const minHistory = Number(process.env["COMPARE_MIN_HISTORY"] ?? 250);
+      console.log(`fetching up to ${days}d of history (coins with >= ${minHistory}d kept)…`);
+      const prep = await prepareBacktestData(data, { universeSize: config.universeSize, candleHistoryDays: days, minHistoryDays: minHistory });
+      if (prep.closesByCoin.size === 0) {
+        console.error("evaluate: no candle data with enough history — try lowering COMPARE_MIN_HISTORY.");
+        process.exitCode = 1;
+        return;
+      }
+      const cfg = { paper: config.paper, initialCapital: config.initialCapital };
+      const winLen = Number(process.env["EVAL_WINDOW"] ?? 45);
+      const step = Number(process.env["EVAL_STEP"] ?? 21);
+      const inLen = Number(process.env["EVAL_INSAMPLE"] ?? 60);
+      const outLen = Number(process.env["EVAL_OOS"] ?? 30);
+      console.log(`(${prep.closesByCoin.size} coins, ${prep.dayTimestamps.length} days)\n`);
+      console.log(formatRobustness(robustness(prep, STRATEGIES, cfg, { winLen, step })));
+      console.log("");
+      console.log(formatWalkForward(walkForward(prep, STRATEGIES, cfg, { inLen, outLen })));
     } else if (command === "serve") {
       const port = Number(process.env["PORT"] ?? 8080);
       startDashboardServer(store, port);
@@ -98,7 +119,7 @@ async function main(): Promise<void> {
         process.on("SIGINT", () => resolve());
       });
     } else {
-      console.error(`unknown command: ${command}\nusage: cli.ts [run|report|watch|daemon|backtest|compare|serve]`);
+      console.error(`unknown command: ${command}\nusage: cli.ts [run|report|watch|daemon|backtest|compare|evaluate|serve]`);
       process.exitCode = 1;
     }
   } finally {

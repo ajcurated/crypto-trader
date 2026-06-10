@@ -1,14 +1,7 @@
-import type { SignalParams } from "../core/signal/index.js";
 import type { PaperParams } from "../core/paper/index.js";
-import { runBacktest, type PreparedBacktest } from "../core/backtest/index.js";
+import { runBacktest, type PreparedBacktest, type Strategy } from "../core/backtest/index.js";
 
-/** A named strategy variant: signal params + how often it rebalances. */
-export interface Strategy {
-  name: string;
-  description: string;
-  signal: SignalParams;
-  rebalanceEveryDays: number;
-}
+export type { Strategy };
 
 export interface StrategyResult {
   name: string;
