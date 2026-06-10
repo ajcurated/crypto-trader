@@ -10,11 +10,13 @@ describe("formatReport", () => {
     store.saveEquityPoint({ timestamp: 86_400_000, equity: 105_000, pricePnl: 5_200, fundingPnl: -50, fees: 150 });
     store.saveAccountState({ initialCapital: 100_000, cash: 100_000, positions: [{ coin: "BTC", size: 1, entry: 100 }], realizedPricePnl: 0, feesPaid: 150, fundingPnl: -50 });
     store.saveSignal(86_400_000, [{ coin: "BTC", score: 1.2 }]);
+    store.saveTrades(86_400_000, [{ coin: "BTC", deltaSize: 1, fillPrice: 100, fee: 0.5, notional: 100 }]);
 
     const out = formatReport(store);
     expect(out).toContain("105,000");
     expect(out).toContain("+5.00%");
     expect(out).toContain("BTC");
+    expect(out).toContain("recent trades");
     store.close();
   });
 

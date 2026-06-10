@@ -74,6 +74,7 @@ describe("RiskLoop", () => {
     push(ctx("ETH", 53));
     await loop.idle();
     expect(store.getAccountState()!.positions).toEqual([]);
+    expect(store.getRecentTrades(100).length).toBeGreaterThan(0); // flatten fills logged
     loop.stop();
     store.close();
   });

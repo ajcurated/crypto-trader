@@ -8,6 +8,15 @@ export interface DashboardPosition {
   entryPrice: number;
 }
 
+export interface DashboardTrade {
+  timestamp: number;
+  coin: string;
+  side: "buy" | "sell";
+  size: number;
+  fillPrice: number;
+  fee: number;
+}
+
 export interface DashboardState {
   equityCurve: { timestamp: number; equity: number }[];
   latestEquity: number;
@@ -15,6 +24,7 @@ export interface DashboardState {
   metrics: EquityMetrics;
   pnl: { price: number; funding: number; fees: number } | null;
   positions: DashboardPosition[];
+  recentTrades: DashboardTrade[];
   latestSignal: { capturedAt: number; strongest: { coin: string; score: number }; weakest: { coin: string; score: number } } | null;
 }
 
@@ -36,11 +46,20 @@ export function buildDashboardState(store: Datastore): DashboardState {
         .map((p) => ({ coin: p.coin, side: p.size > 0 ? "long" : "short", size: Math.abs(p.size), entryPrice: p.entry }))
     : [];
 
+  const recentTrades: DashboardTrade[] = store.getRecentTrades(20).map((t) => ({
+    timestamp: t.timestamp,
+    coin: t.coin,
+    side: t.deltaSize >= 0 ? "buy" : "sell",
+    size: Math.abs(t.deltaSize),
+    fillPrice: t.fillPrice,
+    fee: t.fee,
+  }));
+
   const sig = store.getLatestSignal();
   const latestSignal =
     sig && sig.scores.length > 0
       ? { capturedAt: sig.capturedAt, strongest: sig.scores[0]!, weakest: sig.scores[sig.scores.length - 1]! }
       : null;
 
-  return { equityCurve, latestEquity, totalReturn, metrics, pnl, positions, latestSignal };
+  return { equityCurve, latestEquity, totalReturn, metrics, pnl, positions, recentTrades, latestSignal };
 }

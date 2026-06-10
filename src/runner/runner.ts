@@ -76,14 +76,15 @@ export async function runDailyCycle(deps: RunnerDeps): Promise<EquityPoint> {
   const dueToRebalance = !runner || runner.lastRebalanceAt === 0 || now - runner.lastRebalanceAt >= config.rebalanceIntervalDays * DAY;
   const dataFresh = scores.length >= config.minUniverseForRebalance;
   const shouldRebalance = dueToRebalance && dataFresh;
-  if (shouldRebalance) account.rebalance(weightsFromBook(book), prices, volumes);
+  const fills = shouldRebalance ? account.rebalance(weightsFromBook(book), prices, volumes) : [];
 
-  // 7. Mark + persist atomically (equity, account, runner, signal commit together).
+  // 7. Mark + persist atomically (equity, account, runner, signal, trades commit together).
   const point = account.mark(prices, now);
   store.transaction(() => {
     store.saveSignal(now, scores);
     store.saveEquityPoint(point);
     store.saveAccountState(account.toState());
+    if (fills.length > 0) store.saveTrades(now, fills);
     store.saveRunnerState({
       lastMarkAt: now,
       lastRebalanceAt: shouldRebalance ? now : (runner?.lastRebalanceAt ?? 0),

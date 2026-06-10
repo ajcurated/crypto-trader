@@ -9,6 +9,7 @@ function seeded() {
   s.saveEquityPoint({ timestamp: 86_400_000, equity: 104_000, pricePnl: 4_300, fundingPnl: -50, fees: 250 });
   s.saveAccountState({ initialCapital: 100_000, cash: 100_000, positions: [{ coin: "BTC", size: 1, entry: 100 }, { coin: "ETH", size: -2, entry: 50 }], realizedPricePnl: 0, feesPaid: 250, fundingPnl: -50 });
   s.saveSignal(86_400_000, [{ coin: "BTC", score: 1.5 }, { coin: "ETH", score: -0.8 }]);
+  s.saveTrades(86_400_000, [{ coin: "BTC", deltaSize: 1, fillPrice: 100, fee: 0.5, notional: 100 }]);
   return s;
 }
 
@@ -24,6 +25,7 @@ describe("buildDashboardState", () => {
     expect(d.positions.map((p) => [p.coin, p.side])).toEqual([["BTC", "long"], ["ETH", "short"]]);
     expect(d.latestSignal!.strongest.coin).toBe("BTC");
     expect(d.latestSignal!.weakest.coin).toBe("ETH");
+    expect(d.recentTrades).toEqual([{ timestamp: 86_400_000, coin: "BTC", side: "buy", size: 1, fillPrice: 100, fee: 0.5 }]);
     s.close();
   });
 
@@ -35,6 +37,7 @@ describe("buildDashboardState", () => {
     expect(d.latestEquity).toBe(0);
     expect(d.positions).toEqual([]);
     expect(d.pnl).toBeNull();
+    expect(d.recentTrades).toEqual([]);
     expect(d.latestSignal).toBeNull();
     s.close();
   });

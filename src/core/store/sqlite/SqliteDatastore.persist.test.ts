@@ -45,4 +45,19 @@ describe("SqliteDatastore Phase 4 persistence", () => {
     expect(s.getLatestSignal()).toEqual({ capturedAt: 200, scores: [{ coin: "SOL", score: 0.5 }] });
     s.close();
   });
+
+  it("appends trades and returns them newest-first up to a limit", () => {
+    const s = store();
+    s.saveTrades(100, [{ coin: "BTC", deltaSize: 1, fillPrice: 100, fee: 0.5, notional: 100 }]);
+    s.saveTrades(200, [
+      { coin: "ETH", deltaSize: -2, fillPrice: 50, fee: 0.4, notional: -100 },
+      { coin: "SOL", deltaSize: 3, fillPrice: 20, fee: 0.3, notional: 60 },
+    ]);
+    const recent = s.getRecentTrades(2);
+    expect(recent).toHaveLength(2);
+    expect(recent[0]).toEqual({ timestamp: 200, coin: "SOL", deltaSize: 3, fillPrice: 20, fee: 0.3, notional: 60 });
+    expect(recent[1]!.coin).toBe("ETH");
+    expect(s.getRecentTrades(99)).toHaveLength(3); // all three
+    s.close();
+  });
 });

@@ -78,11 +78,13 @@ async function load() {
     ["fees", "$" + fmt(pnl.fees)],
   ];
   const posRows = d.positions.map((p) => "<tr><td>" + (p.side === "long" ? '<span class="pos">long</span>' : '<span class="neg">short</span>') + "</td><td>" + p.coin + "</td><td>" + fmt(p.size, 4) + "</td><td>$" + fmt(p.entryPrice) + "</td></tr>").join("");
+  const tradeRows = (d.recentTrades || []).map((t) => "<tr><td>" + new Date(t.timestamp).toISOString().slice(0, 10) + "</td><td>" + (t.side === "buy" ? '<span class="pos">buy</span>' : '<span class="neg">sell</span>') + "</td><td>" + t.coin + "</td><td>" + fmt(t.size, 4) + "</td><td>$" + fmt(t.fillPrice) + "</td><td>$" + fmt(t.fee) + "</td></tr>").join("");
   const sig = d.latestSignal ? "strongest <b>" + d.latestSignal.strongest.coin + "</b> (" + fmt(d.latestSignal.strongest.score) + "), weakest <b>" + d.latestSignal.weakest.coin + "</b> (" + fmt(d.latestSignal.weakest.score) + ")" : "—";
   document.getElementById("app").innerHTML =
     chart(d.equityCurve) +
     '<div class="grid">' + cards.map((c) => '<div class="card"><div class="label">' + c[0] + '</div><div class="val">' + c[1] + "</div></div>").join("") + "</div>" +
     '<div class="card"><div class="label">current book</div>' + (d.positions.length ? '<table><tr><th>side</th><th>coin</th><th>size</th><th>entry</th></tr>' + posRows + "</table>" : '<p class="muted">flat</p>') + "</div>" +
+    '<div class="card" style="margin-top:12px"><div class="label">recent trades</div>' + ((d.recentTrades && d.recentTrades.length) ? '<table><tr><th>date</th><th>side</th><th>coin</th><th>size</th><th>fill</th><th>fee</th></tr>' + tradeRows + "</table>" : '<p class="muted">none yet</p>') + "</div>" +
     '<p class="muted" style="margin-top:16px">latest signal: ' + sig + "</p>";
 }
 load().catch((e) => { document.getElementById("app").textContent = "error: " + e.message; });

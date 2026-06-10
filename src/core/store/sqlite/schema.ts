@@ -23,5 +23,11 @@ export function migrate(db: Database): void {
       captured_at INTEGER PRIMARY KEY,
       payload     TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS trades (
+      id        INTEGER PRIMARY KEY AUTOINCREMENT,
+      timestamp INTEGER NOT NULL,
+      payload   TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_trades_ts ON trades (timestamp);
   `);
 }
