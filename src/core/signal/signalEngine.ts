@@ -12,6 +12,12 @@ export interface SignalParams {
   grossExposure: number;
   /** Extra ranks of tolerance before an incumbent is dropped. */
   hysteresisBuffer: number;
+  /**
+   * "momentum" (default) longs the strongest and shorts the weakest;
+   * "reversion" flips it — long the recent losers, short the recent winners
+   * (profits when trends reverse / in choppy markets).
+   */
+  mode?: "momentum" | "reversion";
 }
 
 const EMPTY_BOOK: CurrentBook = { longs: [], shorts: [] };
@@ -37,7 +43,9 @@ export function buildTargetBook(
     if (finite) eligible.set(coin, closes);
   }
 
-  const scores = compositeScores(eligible, params.lookbacks);
+  const raw = compositeScores(eligible, params.lookbacks);
+  // Reversion mode flips the sign, so ranking/selection long the losers.
+  const scores = params.mode === "reversion" ? raw.map((s) => ({ coin: s.coin, score: -s.score })) : raw;
   const ranked = [...scores].sort((a, b) => b.score - a.score);
   if (ranked.length < 2) return { scores: ranked, book: { positions: [] } };
 

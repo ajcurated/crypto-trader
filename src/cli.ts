@@ -5,9 +5,9 @@ import { runDailyCycle } from "./runner/runner.js";
 import { formatReport } from "./runner/report.js";
 import { RiskLoop } from "./runner/riskLoop.js";
 import { Daemon } from "./runner/daemon.js";
-import { runBacktest, prepareBacktestData, robustness, walkForward, analyzeRegimes } from "./core/backtest/index.js";
-import { STRATEGIES, runComparison, formatComparison } from "./runner/compare.js";
-import { formatRobustness, formatWalkForward, formatRegimes } from "./runner/evaluate.js";
+import { runBacktest, prepareBacktestData, robustness, walkForward, analyzeRegimes, regimePlaybook, regimeNow } from "./core/backtest/index.js";
+import { STRATEGIES, PLAYBOOK, runComparison, formatComparison } from "./runner/compare.js";
+import { formatRobustness, formatWalkForward, formatRegimes, formatRegimeNow, formatPlaybook } from "./runner/evaluate.js";
 import { startDashboardServer } from "./dashboard/index.js";
 import { ConsoleNotifier, MultiNotifier, TelegramNotifier, type Notifier } from "./core/notify/index.js";
 
@@ -127,6 +127,19 @@ async function main(): Promise<void> {
       const strategy = { name: "baseline", description: "configured strategy", signal: config.signal, rebalanceEveryDays: config.rebalanceIntervalDays };
       const blockLen = Number(process.env["REGIME_BLOCK"] ?? 40);
       console.log(formatRegimes(analyzeRegimes(prep, strategy, { paper: config.paper, initialCapital: config.initialCapital }, { blockLen })));
+    } else if (command === "playbook") {
+      const data = new HyperLiquidDataSource();
+      const days = Number(process.env["COMPARE_DAYS"] ?? 800);
+      const minHistory = Number(process.env["COMPARE_MIN_HISTORY"] ?? 730);
+      console.log(`fetching up to ${days}d of history (coins with >= ${minHistory}d kept)…`);
+      const prep = await prepareBacktestData(data, { universeSize: 30, candleHistoryDays: days, minHistoryDays: minHistory });
+      if (prep.closesByCoin.size === 0) { console.error("playbook: no candle data."); process.exitCode = 1; return; }
+      const span = ((prep.dayTimestamps[prep.dayTimestamps.length - 1]! - prep.dayTimestamps[0]!) / 86_400_000).toFixed(0);
+      console.log(`(${prep.closesByCoin.size} coins, ${prep.dayTimestamps.length} days / ${span}d span)\n`);
+      const cfg = { paper: config.paper, initialCapital: config.initialCapital };
+      console.log(formatRegimeNow(regimeNow(prep, Number(process.env["REGIME_LOOKBACK"] ?? 30))));
+      console.log("");
+      console.log(formatPlaybook(regimePlaybook(prep, PLAYBOOK, cfg, { blockLen: Number(process.env["REGIME_BLOCK"] ?? 40) })));
     } else if (command === "serve") {
       const port = Number(process.env["PORT"] ?? 8080);
       startDashboardServer(store, port);
@@ -135,7 +148,7 @@ async function main(): Promise<void> {
         process.on("SIGINT", () => resolve());
       });
     } else {
-      console.error(`unknown command: ${command}\nusage: cli.ts [run|report|watch|daemon|backtest|compare|evaluate|regimes|serve]`);
+      console.error(`unknown command: ${command}\nusage: cli.ts [run|report|watch|daemon|backtest|compare|evaluate|regimes|playbook|serve]`);
       process.exitCode = 1;
     }
   } finally {

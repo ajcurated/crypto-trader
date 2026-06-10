@@ -11,3 +11,5 @@ export { runWindow, rollingWindows, robustness, walkForward } from "./walkforwar
 export type { RegimeBlock } from "./regimes.js";
 export { analyzeRegimes } from "./regimes.js";
 export { realizedVol, volTargetScale } from "./voltarget.js";
+export type { RegimeLabel, PlaybookCell, PlaybookRegime, RegimeNow } from "./playbook.js";
+export { regimePlaybook, regimeNow } from "./playbook.js";

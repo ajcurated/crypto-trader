@@ -16,6 +16,7 @@
     "compare": "tsx src/cli.ts compare",
     "evaluate": "tsx src/cli.ts evaluate",
     "regimes": "tsx src/cli.ts regimes",
+    "playbook": "tsx src/cli.ts playbook",
     "serve": "tsx src/cli.ts serve"
   },
   "dependencies": {
