@@ -72,13 +72,27 @@ export const STRATEGIES: Strategy[] = [
     signal: { lookbacks: [3, 5], quintileFraction: 0.2, grossExposure: 1.0, hysteresisBuffer: 1, mode: "reversion" },
     rebalanceEveryDays: 3,
   },
+  {
+    name: "funding-carry",
+    description: "FUNDING CARRY: long most-negative-funding, short most-positive (collect funding both legs); vol-managed",
+    signal: { lookbacks: [3], quintileFraction: 0.2, grossExposure: 1.0, hysteresisBuffer: 1, mode: "carry" },
+    rebalanceEveryDays: 3,
+    volTarget: 0.2,
+    maxLeverage: 1.5,
+  },
+  {
+    name: "carry-raw",
+    description: "funding carry WITHOUT vol management (shows the price/steamroller risk)",
+    signal: { lookbacks: [3], quintileFraction: 0.2, grossExposure: 1.0, hysteresisBuffer: 1, mode: "carry" },
+    rebalanceEveryDays: 3,
+  },
 ];
 
-/** A focused regime toolkit: one representative strategy per regime. */
+/** A focused regime toolkit: the strategies the data actually supports. */
 export const PLAYBOOK: Strategy[] = [
   STRATEGIES.find((s) => s.name === "baseline")!,
-  STRATEGIES.find((s) => s.name === "reversion")!,
   STRATEGIES.find((s) => s.name === "vol-target")!,
+  STRATEGIES.find((s) => s.name === "funding-carry")!,
 ];
 
 /**
