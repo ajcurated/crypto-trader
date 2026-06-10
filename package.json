@@ -12,7 +12,8 @@
     "report": "tsx src/cli.ts report",
     "watch": "tsx src/cli.ts watch",
     "daemon": "tsx src/cli.ts daemon",
-    "backtest": "tsx src/cli.ts backtest"
+    "backtest": "tsx src/cli.ts backtest",
+    "serve": "tsx src/cli.ts serve"
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1",
