@@ -58,6 +58,14 @@ export const STRATEGIES: Strategy[] = [
     signal: { lookbacks: [30, 60], quintileFraction: 0.2, grossExposure: 2.0, hysteresisBuffer: 1 },
     rebalanceEveryDays: 7,
   },
+  {
+    name: "vol-target",
+    description: "baseline with 25% annualized vol targeting (de-risks when turbulent)",
+    signal: { lookbacks: [30, 60], quintileFraction: 0.2, grossExposure: 1.0, hysteresisBuffer: 1 },
+    rebalanceEveryDays: 7,
+    volTarget: 0.25,
+    maxLeverage: 1.5,
+  },
 ];
 
 /**
@@ -79,6 +87,8 @@ export function runComparison(
       rebalanceEveryDays: s.rebalanceEveryDays,
       warmupDays: commonWarmup,
       initialCapital: cfg.initialCapital,
+      volTarget: s.volTarget,
+      maxLeverage: s.maxLeverage,
     });
     return {
       name: s.name,

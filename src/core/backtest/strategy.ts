@@ -6,4 +6,8 @@ export interface Strategy {
   description: string;
   signal: SignalParams;
   rebalanceEveryDays: number;
+  /** Optional annualized vol target; scales gross to hold risk constant. */
+  volTarget?: number;
+  /** Max exposure multiple when vol-targeting. */
+  maxLeverage?: number;
 }

@@ -4,6 +4,7 @@ import { buildTargetBook } from "../signal/index.js";
 import { PaperAccount } from "../paper/index.js";
 import { weightsFromBook, currentBookFromPositions } from "../../runner/adapters.js";
 import { equityMetrics, type EquityCurvePoint, type EquityMetrics } from "./metrics.js";
+import { volTargetScale } from "./voltarget.js";
 
 export interface BacktestInput {
   closesByCoin: Map<string, number[]>;
@@ -16,6 +17,12 @@ export interface BacktestInput {
   rebalanceEveryDays: number;
   warmupDays: number;
   initialCapital: number;
+  /** Annualized volatility target; when set, gross is scaled to hold this vol. */
+  volTarget?: number;
+  /** Trailing window (days) for the realized-vol estimate (default 20). */
+  volWindow?: number;
+  /** Max exposure multiple when vol-targeting (default 2). */
+  maxLeverage?: number;
 }
 
 export interface BacktestResult {
@@ -55,7 +62,15 @@ export function runBacktest(input: BacktestInput): BacktestResult {
       const history = new Map<string, number[]>();
       for (const c of coins) history.set(c, input.closesByCoin.get(c)!.slice(0, t + 1));
       const { book } = buildTargetBook(history, input.signal, current);
-      const f = account.rebalance(weightsFromBook(book), prices, input.volumeByCoin);
+      let weights = weightsFromBook(book);
+      if (input.volTarget !== undefined) {
+        const window = equityCurve.slice(-(input.volWindow ?? 20));
+        const recent: number[] = [];
+        for (let i = 1; i < window.length; i++) recent.push(window[i]!.equity / window[i - 1]!.equity - 1);
+        const scale = volTargetScale(recent, input.volTarget, input.maxLeverage ?? 2);
+        weights = new Map([...weights].map(([c, w]) => [c, w * scale]));
+      }
+      const f = account.rebalance(weights, prices, input.volumeByCoin);
       fills += f.length;
       rebalances += 1;
       current = currentBookFromPositions(account.positions());
