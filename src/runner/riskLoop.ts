@@ -12,6 +12,8 @@ export interface RiskLoopDeps {
   notify: Notifier;
   paper: PaperParams;
   risk: RiskParams;
+  /** Clock for stamping flatten trades (defaults to Date.now). */
+  now?: () => number;
 }
 
 /**
@@ -79,9 +81,10 @@ export class RiskLoop {
     if (toFlatten.length === 0) return;
 
     const volumes = new Map<string, number>(); // unknown live; slippage falls back to 0
-    account.flatten(toFlatten, this.marks, volumes);
+    const fills = account.flatten(toFlatten, this.marks, volumes);
     this.deps.store.transaction(() => {
       this.deps.store.saveAccountState(account.toState());
+      if (fills.length > 0) this.deps.store.saveTrades((this.deps.now ?? Date.now)(), fills);
     });
     await this.deps.notify.send(`flattened ${toFlatten.join(", ")}`).catch(() => {});
   }

@@ -49,6 +49,9 @@ describe("runDailyCycle", () => {
     // return/volatility), so the strongest persisted signal is UP2.
     expect(store.getLatestSignal()?.scores[0]?.coin).toBe("UP2");
     expect(store.getAccountState()!.positions.length).toBeGreaterThan(0);
+    // the rebalance fills were persisted to the trade log
+    expect(store.getRecentTrades(100).length).toBeGreaterThan(0);
+    expect(store.getRecentTrades(100)[0]!.timestamp).toBe(10 * DAY);
     store.close();
   });
 
