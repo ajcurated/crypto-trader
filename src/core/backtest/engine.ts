@@ -1,6 +1,6 @@
 import type { SignalParams, CurrentBook } from "../signal/index.js";
 import type { PaperParams, Position } from "../paper/index.js";
-import { buildTargetBook } from "../signal/index.js";
+import { buildTargetBook, buildCarryBook } from "../signal/index.js";
 import { PaperAccount } from "../paper/index.js";
 import { weightsFromBook, currentBookFromPositions } from "../../runner/adapters.js";
 import { equityMetrics, type EquityCurvePoint, type EquityMetrics } from "./metrics.js";
@@ -59,9 +59,23 @@ export function runBacktest(input: BacktestInput): BacktestResult {
     if (rates.size > 0) account.accrueFunding(rates, prices);
 
     if ((t - input.warmupDays) % input.rebalanceEveryDays === 0) {
-      const history = new Map<string, number[]>();
-      for (const c of coins) history.set(c, input.closesByCoin.get(c)!.slice(0, t + 1));
-      const { book } = buildTargetBook(history, input.signal, current);
+      let book;
+      if (input.signal.mode === "carry") {
+        // Rank by trailing-average funding (window = lookbacks[0], default 3d).
+        const window = input.signal.lookbacks[0] ?? 3;
+        const avgFunding = new Map<string, number>();
+        for (const c of coins) {
+          const fb = input.fundingByDayByCoin.get(c);
+          if (!fb) continue;
+          const slice = fb.slice(Math.max(0, t - window + 1), t + 1);
+          if (slice.length > 0) avgFunding.set(c, slice.reduce((a, b) => a + b, 0) / slice.length);
+        }
+        book = buildCarryBook(avgFunding, input.signal, current).book;
+      } else {
+        const history = new Map<string, number[]>();
+        for (const c of coins) history.set(c, input.closesByCoin.get(c)!.slice(0, t + 1));
+        book = buildTargetBook(history, input.signal, current).book;
+      }
       let weights = weightsFromBook(book);
       if (input.volTarget !== undefined) {
         const window = equityCurve.slice(-(input.volWindow ?? 20));
