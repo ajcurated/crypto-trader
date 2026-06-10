@@ -9,6 +9,12 @@ export interface Config {
   initialCapital: number;
   dbPath: string;
   minUniverseForRebalance: number;
+  /** Annualized vol target (0 disables). Scales live gross to hold risk constant. */
+  volTarget: number;
+  /** Trailing equity-return window (days) for the realized-vol estimate. */
+  volWindow: number;
+  /** Max exposure multiple when vol-targeting. */
+  maxLeverage: number;
   signal: SignalParams;
   paper: PaperParams;
   risk: RiskParams;
@@ -21,6 +27,9 @@ export const DEFAULT_CONFIG: Config = {
   initialCapital: 100_000,
   dbPath: "crypto-markets.sqlite",
   minUniverseForRebalance: 6,
+  volTarget: 0.25,
+  volWindow: 20,
+  maxLeverage: 1.5,
   signal: { lookbacks: [30, 60], quintileFraction: 0.2, grossExposure: 1.0, hysteresisBuffer: 1 },
   paper: { feeRate: 0.00045, slippageCoeff: 0.1, maxSlippage: 0.02 },
   risk: { spreadStopPct: 0.08, circuitBreakerBand: 0.15, fundingAlertAnnualized: 0.5 },
@@ -42,6 +51,9 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     rebalanceIntervalDays: numFromEnv(env["REBALANCE_INTERVAL_DAYS"], DEFAULT_CONFIG.rebalanceIntervalDays),
     initialCapital: numFromEnv(env["INITIAL_CAPITAL"], DEFAULT_CONFIG.initialCapital),
     minUniverseForRebalance: numFromEnv(env["MIN_UNIVERSE_FOR_REBALANCE"], DEFAULT_CONFIG.minUniverseForRebalance),
+    volTarget: numFromEnv(env["VOL_TARGET"], DEFAULT_CONFIG.volTarget),
+    volWindow: numFromEnv(env["VOL_WINDOW"], DEFAULT_CONFIG.volWindow),
+    maxLeverage: numFromEnv(env["MAX_LEVERAGE"], DEFAULT_CONFIG.maxLeverage),
     dbPath: env["DB_PATH"] ?? DEFAULT_CONFIG.dbPath,
     risk: {
       spreadStopPct: numFromEnv(env["SPREAD_STOP_PCT"], DEFAULT_CONFIG.risk.spreadStopPct),
