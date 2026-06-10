@@ -36,4 +36,24 @@ describe("handleDashboardRequest", () => {
     expect(res.status).toBe(404);
     s.close();
   });
+
+  it("includes live data in /api/state when a live provider is given", () => {
+    const s = store();
+    const live = () => ({ asOf: 123, feed: "connected", equity: 99_000, positions: [{ coin: "BTC", side: "long" as const, size: 1, entryPrice: 100, mark: 110, unrealizedPnl: 10 }] });
+    const body = JSON.parse(handleDashboardRequest(s, "/api/state", { live }).body);
+    expect(body.live.equity).toBe(99_000);
+    expect(body.live.positions[0].unrealizedPnl).toBe(10);
+    s.close();
+  });
+
+  it("requires HTTP basic auth when configured", () => {
+    const s = store();
+    const auth = { user: "u", pass: "p" };
+    const no = handleDashboardRequest(s, "/", { auth });
+    expect(no.status).toBe(401);
+    expect(no.headers?.["www-authenticate"]).toContain("Basic");
+    const ok = handleDashboardRequest(s, "/", { auth, authHeader: "Basic " + Buffer.from("u:p").toString("base64") });
+    expect(ok.status).toBe(200);
+    s.close();
+  });
 });

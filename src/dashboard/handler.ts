@@ -1,17 +1,40 @@
 import type { Datastore } from "../core/store/index.js";
 import { buildDashboardState } from "./state.js";
+import type { LiveSnapshot } from "../runner/riskLoop.js";
 
 export interface DashboardResponse {
   status: number;
   contentType: string;
   body: string;
+  headers?: Record<string, string>;
 }
 
-/** Route a dashboard request path to a JSON or HTML response. */
-export function handleDashboardRequest(store: Datastore, path: string): DashboardResponse {
+export interface DashboardOpts {
+  /** Live mark-to-market provider (the running risk loop). */
+  live?: () => LiveSnapshot | null;
+  /** If set, require HTTP Basic auth matching these creds. */
+  auth?: { user: string; pass: string };
+  /** The request's Authorization header (for the auth check). */
+  authHeader?: string;
+}
+
+function authorized(opts: DashboardOpts): boolean {
+  if (!opts.auth) return true;
+  const h = opts.authHeader ?? "";
+  if (!h.startsWith("Basic ")) return false;
+  const [user, pass] = Buffer.from(h.slice(6), "base64").toString().split(":");
+  return user === opts.auth.user && pass === opts.auth.pass;
+}
+
+/** Route a dashboard request to a JSON or HTML response (optionally live + authed). */
+export function handleDashboardRequest(store: Datastore, path: string, opts: DashboardOpts = {}): DashboardResponse {
   const route = path.split("?")[0];
+  if (opts.auth && !authorized(opts)) {
+    return { status: 401, contentType: "text/plain", body: "auth required", headers: { "www-authenticate": 'Basic realm="crypto-markets"' } };
+  }
   if (route === "/api/state") {
-    return { status: 200, contentType: "application/json", body: JSON.stringify(buildDashboardState(store)) };
+    const state = { ...buildDashboardState(store), live: opts.live ? opts.live() : null };
+    return { status: 200, contentType: "application/json", body: JSON.stringify(state) };
   }
   if (route === "/" || route === "/index.html") {
     return { status: 200, contentType: "text/html", body: DASHBOARD_HTML };
@@ -80,7 +103,18 @@ async function load() {
   const posRows = d.positions.map((p) => "<tr><td>" + (p.side === "long" ? '<span class="pos">long</span>' : '<span class="neg">short</span>') + "</td><td>" + p.coin + "</td><td>" + fmt(p.size, 4) + "</td><td>$" + fmt(p.entryPrice) + "</td></tr>").join("");
   const tradeRows = (d.recentTrades || []).map((t) => "<tr><td>" + new Date(t.timestamp).toISOString().slice(0, 10) + "</td><td>" + (t.side === "buy" ? '<span class="pos">buy</span>' : '<span class="neg">sell</span>') + "</td><td>" + t.coin + "</td><td>" + fmt(t.size, 4) + "</td><td>$" + fmt(t.fillPrice) + "</td><td>$" + fmt(t.fee) + "</td></tr>").join("");
   const sig = d.latestSignal ? "strongest <b>" + d.latestSignal.strongest.coin + "</b> (" + fmt(d.latestSignal.strongest.score) + "), weakest <b>" + d.latestSignal.weakest.coin + "</b> (" + fmt(d.latestSignal.weakest.score) + ")" : "—";
+  // Live banner (only present when the risk loop is running and has marks).
+  let liveBlock = "";
+  if (d.live) {
+    const uTot = d.live.positions.reduce((s, p) => s + p.unrealizedPnl, 0);
+    const liveRows = d.live.positions.map((p) => "<tr><td>" + (p.side === "long" ? '<span class="pos">long</span>' : '<span class="neg">short</span>') + "</td><td>" + p.coin + "</td><td>$" + fmt(p.mark) + "</td><td class=\\"" + cls(p.unrealizedPnl) + "\\">" + (p.unrealizedPnl >= 0 ? "+" : "") + "$" + fmt(p.unrealizedPnl) + "</td></tr>").join("");
+    liveBlock =
+      '<div class="card" style="border-color:#3fb950"><div class="label">live NAV <span style="color:#3fb950">● ' + d.live.feed + '</span> · ' + new Date(d.live.asOf).toLocaleTimeString() + '</div>' +
+      '<div class="val">$' + fmt(d.live.equity) + '  <span class="' + cls(uTot) + '" style="font-size:14px">(' + (uTot >= 0 ? "+" : "") + '$' + fmt(uTot) + ' unrealized)</span></div>' +
+      '<table style="margin-top:8px"><tr><th>side</th><th>coin</th><th>mark</th><th>uPnL</th></tr>' + liveRows + "</table></div>";
+  }
   document.getElementById("app").innerHTML =
+    liveBlock +
     chart(d.equityCurve) +
     '<div class="grid">' + cards.map((c) => '<div class="card"><div class="label">' + c[0] + '</div><div class="val">' + c[1] + "</div></div>").join("") + "</div>" +
     '<div class="card"><div class="label">current book</div>' + (d.positions.length ? '<table><tr><th>side</th><th>coin</th><th>size</th><th>entry</th></tr>' + posRows + "</table>" : '<p class="muted">flat</p>') + "</div>" +
@@ -88,7 +122,7 @@ async function load() {
     '<p class="muted" style="margin-top:16px">latest signal: ' + sig + "</p>";
 }
 load().catch((e) => { document.getElementById("app").textContent = "error: " + e.message; });
-setInterval(load, 30000);
+setInterval(() => load().catch(() => {}), 5000);
 </script>
 </body>
 </html>`;

@@ -48,6 +48,11 @@ export class Daemon {
     this.deps.schedule(() => { void this.runOnce().catch((err) => console.error("daemon cycle failed:", err)); }, HOUR);
   }
 
+  /** Live mark-to-market from the risk loop's WS feed (for a real-time UI). */
+  liveSnapshot() {
+    return this.risk.liveSnapshot();
+  }
+
   stop(): void {
     this.risk.stop();
   }

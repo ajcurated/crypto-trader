@@ -17,7 +17,8 @@
     "evaluate": "tsx src/cli.ts evaluate",
     "regimes": "tsx src/cli.ts regimes",
     "playbook": "tsx src/cli.ts playbook",
-    "serve": "tsx src/cli.ts serve"
+    "serve": "tsx src/cli.ts serve",
+    "app": "tsx src/cli.ts app"
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1",
