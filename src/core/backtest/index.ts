@@ -13,3 +13,5 @@ export { analyzeRegimes } from "./regimes.js";
 export { realizedVol, volTargetScale } from "./voltarget.js";
 export type { RegimeLabel, PlaybookCell, PlaybookRegime, RegimeNow } from "./playbook.js";
 export { regimePlaybook, regimeNow } from "./playbook.js";
+export type { SweepRow } from "./sweep.js";
+export { sweepRebalance } from "./sweep.js";
