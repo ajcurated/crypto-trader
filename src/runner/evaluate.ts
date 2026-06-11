@@ -105,3 +105,17 @@ export function formatPlaybook(rows: PlaybookRegime[]): string {
   lines.push("read: pick the strategy with the strongest avg return + win-rate for the regime you judge we're in.");
   return lines.join("\n");
 }
+
+/** Rebalance-frequency sweep: cadence vs return / risk / turnover. */
+export function formatSweep(rows: import("../core/backtest/index.js").SweepRow[]): string {
+  const lines: string[] = [];
+  lines.push(`=== rebalance-frequency sweep (signal fixed; only the interval varies) ===`);
+  lines.push(`${pad("every", 7)} ${padN("return", 8)} ${padN("Sharpe", 7)} ${padN("vol", 8)} ${padN("maxDD", 7)} ${padN("rebals", 7)} ${padN("fills", 6)} ${padN("fees", 9)}`);
+  lines.push("-".repeat(64));
+  for (const r of rows) {
+    lines.push(`${pad(r.intervalDays + "d", 7)} ${padN(pct(r.totalReturn), 8)} ${padN(r.sharpe.toFixed(2), 7)} ${padN(pct(r.annualizedVol), 8)} ${padN(pct(-r.maxDrawdown), 7)} ${padN(String(r.rebalances), 7)} ${padN(String(r.fills), 6)} ${padN("$" + r.fees.toFixed(0), 9)}`);
+  }
+  lines.push("");
+  lines.push("faster = more reactive but more fills/fees; slower = lower turnover but slower to adapt.");
+  return lines.join("\n");
+}

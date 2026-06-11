@@ -31,6 +31,8 @@ export interface BacktestResult {
   rebalances: number;
   fills: number;
   fundingPnl: number;
+  /** Cumulative fees paid over the run (turnover cost). */
+  fees: number;
   finalPositions: Position[];
 }
 
@@ -101,6 +103,7 @@ export function runBacktest(input: BacktestInput): BacktestResult {
     rebalances,
     fills,
     fundingPnl: lastMark ? lastMark.fundingPnl : 0,
+    fees: lastMark ? lastMark.fees : 0,
     finalPositions: account.positions(),
   };
 }

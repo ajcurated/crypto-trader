@@ -17,6 +17,7 @@
     "evaluate": "tsx src/cli.ts evaluate",
     "regimes": "tsx src/cli.ts regimes",
     "playbook": "tsx src/cli.ts playbook",
+    "sweep": "tsx src/cli.ts sweep",
     "serve": "tsx src/cli.ts serve",
     "app": "tsx src/cli.ts app"
   },
