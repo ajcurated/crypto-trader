@@ -5,7 +5,7 @@ import { runDailyCycle } from "./runner/runner.js";
 import { formatReport } from "./runner/report.js";
 import { RiskLoop } from "./runner/riskLoop.js";
 import { Daemon } from "./runner/daemon.js";
-import { runBacktest, prepareBacktestData, robustness, walkForward, analyzeRegimes, regimePlaybook, regimeNow, sweepRebalance } from "./core/backtest/index.js";
+import { runBacktest, prepareBacktestData, robustness, walkForward, analyzeRegimes, regimePlaybook, regimeNow, sweepRebalance, type Strategy } from "./core/backtest/index.js";
 import { STRATEGIES, PLAYBOOK, runComparison, formatComparison } from "./runner/compare.js";
 import { formatRobustness, formatWalkForward, formatRegimes, formatRegimeNow, formatPlaybook, formatSweep } from "./runner/evaluate.js";
 import { startDashboardServer } from "./dashboard/index.js";
@@ -159,6 +159,22 @@ async function main(): Promise<void> {
       const base = { name: "base", description: "", signal: config.signal, rebalanceEveryDays: config.rebalanceIntervalDays };
       const intervals = (process.env["SWEEP_INTERVALS"] ?? "1,2,3,5,7,10,14,21,30").split(",").map(Number);
       console.log(formatSweep(sweepRebalance(prep, base, intervals, { paper: config.paper, initialCapital: config.initialCapital })));
+    } else if (command === "interval-wf") {
+      // Walk-forward + robustness over the REBALANCE INTERVAL (signal fixed):
+      // does picking the recent-best interval hold up out-of-sample?
+      const data = new HyperLiquidDataSource();
+      const days = Number(process.env["COMPARE_DAYS"] ?? 800);
+      const minHistory = Number(process.env["COMPARE_MIN_HISTORY"] ?? 730);
+      console.log(`fetching up to ${days}d of history (coins with >= ${minHistory}d kept)…`);
+      const prep = await prepareBacktestData(data, { universeSize: 30, candleHistoryDays: days, minHistoryDays: minHistory });
+      if (prep.closesByCoin.size === 0) { console.error("interval-wf: no candle data."); process.exitCode = 1; return; }
+      const intervals = (process.env["SWEEP_INTERVALS"] ?? "2,3,5,7,14").split(",").map(Number);
+      const strategies: Strategy[] = intervals.map((i) => ({ name: `${i}d`, description: `rebalance every ${i}d`, signal: config.signal, rebalanceEveryDays: i }));
+      const cfg = { paper: config.paper, initialCapital: config.initialCapital };
+      console.log(`(${prep.closesByCoin.size} coins, ${prep.dayTimestamps.length} days; intervals ${intervals.join("/")}d)\n`);
+      console.log(formatRobustness(robustness(prep, strategies, cfg, { winLen: Number(process.env["EVAL_WINDOW"] ?? 60), step: Number(process.env["EVAL_STEP"] ?? 30) })));
+      console.log("");
+      console.log(formatWalkForward(walkForward(prep, strategies, cfg, { inLen: Number(process.env["EVAL_INSAMPLE"] ?? 90), outLen: Number(process.env["EVAL_OOS"] ?? 45) })));
     } else if (command === "serve") {
       const port = Number(process.env["PORT"] ?? 8080);
       startDashboardServer(store, port, dashboardAuth(process.env));
@@ -180,7 +196,7 @@ async function main(): Promise<void> {
         process.on("SIGINT", () => { daemon.stop(); resolve(); });
       });
     } else {
-      console.error(`unknown command: ${command}\nusage: cli.ts [run|report|watch|daemon|backtest|compare|evaluate|regimes|playbook|sweep|serve|app]`);
+      console.error(`unknown command: ${command}\nusage: cli.ts [run|report|watch|daemon|backtest|compare|evaluate|regimes|playbook|sweep|interval-wf|serve|app]`);
       process.exitCode = 1;
     }
   } finally {
