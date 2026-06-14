@@ -22,6 +22,12 @@ export function currentBookFromPositions(positions: Position[]): CurrentBook {
   };
 }
 
+/** Held coins that have dropped out of the tradeable universe (no live price). */
+export function strandedPositions(positions: Position[], universeNames: Iterable<string>): string[] {
+  const inUniverse = new Set(universeNames);
+  return positions.map((p) => p.coin).filter((coin) => !inUniverse.has(coin));
+}
+
 /** Sum funding rates strictly after `cutoff` (epoch ms) into a single rate. */
 export function sumFundingSince(points: FundingPoint[], cutoff: number): number {
   return points.reduce((sum, p) => (p.time > cutoff ? sum + p.rate : sum), 0);

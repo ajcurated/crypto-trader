@@ -127,6 +127,35 @@ describe("runDailyCycle", () => {
     store.close();
   });
 
+  it("flattens a held position that has dropped out of the universe on rebalance", async () => {
+    const store = new SqliteDatastore(":memory:");
+    store.init();
+    const cfg: Config = { ...DEFAULT_CONFIG, universeSize: 6, candleHistoryDays: 70, rebalanceIntervalDays: 7, minUniverseForRebalance: 1 };
+
+    // Tick 1: open the book with the full universe.
+    await runDailyCycle({ data: fakeData(), store, config: cfg, now: 10 * DAY });
+    const held = store.getAccountState()!.positions.map((p) => p.coin);
+    expect(held.length).toBeGreaterThan(0);
+    const dropped = held[0]!;
+
+    // Tick 2 (rebalance due): `dropped` has fallen out of the universe, but its
+    // candles are still served so it can be priced and exited.
+    const base = fakeData();
+    const shrunk: MarketDataSource = {
+      ...base,
+      async getUniverse(size: number): Promise<AssetContext[]> {
+        return (await base.getUniverse(size)).filter((c) => c.name !== dropped);
+      },
+    };
+    await runDailyCycle({ data: shrunk, store, config: cfg, now: 17 * DAY });
+
+    const after = store.getAccountState()!.positions.map((p) => p.coin);
+    expect(after).not.toContain(dropped);
+    const exits = store.getRecentTrades(100).filter((t) => t.timestamp === 17 * DAY && t.coin === dropped);
+    expect(exits.length).toBeGreaterThan(0);
+    store.close();
+  });
+
   it("vol-targets the live rebalance: turbulent equity history shrinks gross exposure", async () => {
     const marks: Record<string, number> = { UP1: 170, UP2: 140, MID: 104, DN1: 75, DN2: 50, DN3: 40 };
     const gross = (store: SqliteDatastore) =>
