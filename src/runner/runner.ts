@@ -5,7 +5,7 @@ import type { Config } from "../config.js";
 import { buildTargetBook } from "../core/signal/index.js";
 import { PaperAccount } from "../core/paper/index.js";
 import { volTargetScale } from "../core/backtest/index.js";
-import { weightsFromBook, closesFromCandles, currentBookFromPositions, sumFundingSince } from "./adapters.js";
+import { weightsFromBook, closesFromCandles, currentBookFromPositions, sumFundingSince, strandedPositions } from "./adapters.js";
 
 const DAY = 86_400_000;
 
@@ -57,6 +57,21 @@ export async function runDailyCycle(deps: RunnerDeps): Promise<EquityPoint> {
   const account = prevState ? PaperAccount.fromState(prevState, config.paper) : new PaperAccount(config.initialCapital, config.paper);
   const current = currentBookFromPositions(account.positions());
 
+  // 3b. Price any held coin that has dropped out of the universe (no live mark)
+  //     from its candles so it stays valued for funding/equity. It's kept out of
+  //     closesByCoin — and therefore the signal — so it can't re-enter the book;
+  //     instead it's flattened on the next rebalance (step 6).
+  const stranded = strandedPositions(account.positions(), prices.keys());
+  for (const coin of stranded) {
+    try {
+      const closes = closesFromCandles(await data.getDailyCandles(coin, config.candleHistoryDays));
+      const last = closes[closes.length - 1];
+      if (last !== undefined) prices.set(coin, last);
+    } catch {
+      // can't price it this tick; leave the position untouched until we can
+    }
+  }
+
   // 4. Accrue funding on the PRE-rebalance book (the positions actually held
   //    over the interval since the last mark). None on the first tick.
   if (runner) {
@@ -89,6 +104,9 @@ export async function runDailyCycle(deps: RunnerDeps): Promise<EquityPoint> {
     weights = new Map([...weights].map(([c, w]) => [c, w * scale]));
   }
   const fills = shouldRebalance ? account.rebalance(weights, prices, volumes) : [];
+  // Exit any stranded leg on the same cadence as the rebalance (now priceable).
+  const exits = shouldRebalance ? account.flatten(stranded, prices, volumes) : [];
+  const trades = [...fills, ...exits];
 
   // 7. Mark + persist atomically (equity, account, runner, signal, trades commit together).
   const point = account.mark(prices, now);
@@ -96,7 +114,7 @@ export async function runDailyCycle(deps: RunnerDeps): Promise<EquityPoint> {
     store.saveSignal(now, scores);
     store.saveEquityPoint(point);
     store.saveAccountState(account.toState());
-    if (fills.length > 0) store.saveTrades(now, fills);
+    if (trades.length > 0) store.saveTrades(now, trades);
     store.saveRunnerState({
       lastMarkAt: now,
       lastRebalanceAt: shouldRebalance ? now : (runner?.lastRebalanceAt ?? 0),

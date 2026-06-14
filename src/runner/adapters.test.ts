@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { weightsFromBook, closesFromCandles, currentBookFromPositions, sumFundingSince } from "./adapters.js";
+import { weightsFromBook, closesFromCandles, currentBookFromPositions, sumFundingSince, strandedPositions } from "./adapters.js";
 import type { TargetBook } from "../core/signal/index.js";
 import type { Candle, FundingPoint } from "../core/data/index.js";
 import type { Position } from "../core/paper/index.js";
@@ -31,6 +31,22 @@ describe("currentBookFromPositions", () => {
       { coin: "ETH", side: "short", size: 2, entryPrice: 50 },
     ];
     expect(currentBookFromPositions(positions)).toEqual({ longs: ["BTC"], shorts: ["ETH"] });
+  });
+});
+
+describe("strandedPositions", () => {
+  const positions: Position[] = [
+    { coin: "BTC", side: "long", size: 1, entryPrice: 100 },
+    { coin: "PAXG", side: "short", size: 2, entryPrice: 50 },
+  ];
+  it("returns held coins absent from the tradeable universe", () => {
+    expect(strandedPositions(positions, ["BTC", "ETH", "SOL"])).toEqual(["PAXG"]);
+  });
+  it("returns nothing when every held coin is still in the universe", () => {
+    expect(strandedPositions(positions, ["BTC", "PAXG"])).toEqual([]);
+  });
+  it("is empty for an empty book", () => {
+    expect(strandedPositions([], ["BTC"])).toEqual([]);
   });
 });
 
