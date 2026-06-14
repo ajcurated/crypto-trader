@@ -18,6 +18,8 @@
     "regimes": "tsx src/cli.ts regimes",
     "playbook": "tsx src/cli.ts playbook",
     "sweep": "tsx src/cli.ts sweep",
+    "interval-wf": "tsx src/cli.ts interval-wf",
+    "gain-wf": "tsx src/cli.ts gain-wf",
     "serve": "tsx src/cli.ts serve",
     "app": "tsx src/cli.ts app"
   },

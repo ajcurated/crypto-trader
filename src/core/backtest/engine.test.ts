@@ -59,6 +59,42 @@ describe("runBacktest", () => {
     expect(funded.fundingPnl).toBeLessThan(0);
   });
 
+  it("fires extra rebalances on a favorable-gain trigger between time cadences", () => {
+    // A long, steadily-gaining window (>60d warmup for the signal, then ~80d of trend).
+    const names = ["UP1", "UP2", "MID", "DN1", "DN2", "DN3"];
+    const slope: Record<string, number> = { UP1: 1, UP2: 0.6, MID: 0, DN1: -0.4, DN2: -0.7, DN3: -0.85 };
+    const L = 140;
+    const closesByCoin = new Map<string, number[]>();
+    const volumeByCoin = new Map<string, number>();
+    for (const n of names) {
+      closesByCoin.set(n, Array.from({ length: L }, (_, i) => 100 + slope[n]! * i));
+      volumeByCoin.set(n, 1e12);
+    }
+    const base: BacktestInput = {
+      closesByCoin,
+      volumeByCoin,
+      dayTimestamps: Array.from({ length: L }, (_, i) => i * DAY),
+      fundingByDayByCoin: new Map(),
+      signal: { ...DEFAULT_CONFIG.signal, quintileFraction: 0.34 },
+      paper: DEFAULT_CONFIG.paper,
+      rebalanceEveryDays: 200, // never fires inside the window -> one rebalance at warmup
+      warmupDays: 61,
+      initialCapital: 100_000,
+    };
+    const timeOnly = runBacktest({ ...base });
+    const triggered = runBacktest({ ...base, gainTrigger: 0.01 });
+    // The book gains steadily, so a +1% trigger rebalances more than the clock alone.
+    expect(timeOnly.rebalances).toBe(1);
+    expect(triggered.rebalances).toBeGreaterThan(timeOnly.rebalances);
+  });
+
+  it("is unchanged when no gain trigger is set (pure time cadence)", () => {
+    const r1 = runBacktest(input());
+    const r2 = runBacktest({ ...input(), gainTrigger: undefined });
+    expect(r2.rebalances).toBe(r1.rebalances);
+    expect(r2.equityCurve.at(-1)!.equity).toBe(r1.equityCurve.at(-1)!.equity);
+  });
+
   it("returns an empty-ish result when warmup exceeds the series length", () => {
     const i = input();
     i.warmupDays = 100;
