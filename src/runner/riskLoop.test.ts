@@ -46,21 +46,49 @@ function deps(
 }
 
 describe("RiskLoop", () => {
-  it("flattens a leg and notifies when it gaps beyond the circuit-breaker band", async () => {
-    const store = seededStore();
+  it("flattens a gapped leg then re-equalizes the survivors to dollar-neutral", async () => {
+    const store = new SqliteDatastore(":memory:");
+    store.init();
+    // 2 longs (1000 each), 1 short (500). When BTC is flattened the book is left
+    // long-tilted (SOL 1000 vs ETH 500); the loop must trim SOL back to neutral.
+    store.saveAccountState({
+      initialCapital: 10_000, cash: 10_000,
+      positions: [{ coin: "BTC", size: 10, entry: 100 }, { coin: "SOL", size: 10, entry: 100 }, { coin: "ETH", size: -10, entry: 50 }],
+      realizedPricePnl: 0, feesPaid: 0, fundingPnl: 0,
+    });
     const { ds, push } = fakeData();
     const notify = { send: vi.fn(async () => {}) };
-    // High spread-stop threshold isolates the per-leg circuit breaker: BTC's
-    // -20% gap trips the leg breaker without the book-level stop also firing.
+    // High spread-stop threshold isolates the per-leg circuit breaker.
     const risk = { spreadStopPct: 0.5, circuitBreakerBand: 0.15, fundingAlertAnnualized: 0.5 };
     const loop = new RiskLoop(deps(store, ds, notify, risk));
     loop.start();
     push(ctx("ETH", 50));
-    push(ctx("BTC", 80));
+    push(ctx("SOL", 100));
+    push(ctx("BTC", 80)); // -20% -> trips the leg breaker
     await loop.idle();
-    const state = store.getAccountState()!;
-    expect(state.positions.map((p) => p.coin)).toEqual(["ETH"]);
+
+    const byCoin = Object.fromEntries(store.getAccountState()!.positions.map((p) => [p.coin, p.size]));
+    expect(byCoin["BTC"]).toBeUndefined(); // gapped leg gone
+    expect(byCoin["SOL"]).toBeCloseTo(5, 6); // long side trimmed 10 -> 5 to match the short
+    expect(byCoin["ETH"]).toBeCloseTo(-10, 6); // lighter side untouched
+    // Book is dollar-neutral again: |SOL|·100 == |ETH|·50.
+    expect(Math.abs(byCoin["SOL"]!) * 100).toBeCloseTo(Math.abs(byCoin["ETH"]!) * 50, 6);
     expect(notify.send).toHaveBeenCalled();
+    loop.stop();
+    store.close();
+  });
+
+  it("neutralizes to flat when a per-leg flatten empties a side", async () => {
+    const store = seededStore(); // BTC long 10@100, ETH short 20@50
+    const { ds, push } = fakeData();
+    const risk = { spreadStopPct: 0.5, circuitBreakerBand: 0.15, fundingAlertAnnualized: 0.5 };
+    const loop = new RiskLoop(deps(store, ds, undefined, risk));
+    loop.start();
+    push(ctx("ETH", 50));
+    push(ctx("BTC", 80)); // flattening the only long empties the long side
+    await loop.idle();
+    // A one-sided (short-only) book is pure direction -> neutral target is flat.
+    expect(store.getAccountState()!.positions).toEqual([]);
     loop.stop();
     store.close();
   });

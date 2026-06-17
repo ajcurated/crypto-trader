@@ -4,7 +4,7 @@ import type { PaperParams } from "../core/paper/index.js";
 import type { Notifier } from "../core/notify/index.js";
 import type { RiskParams } from "../core/risk/index.js";
 import { PaperAccount } from "../core/paper/index.js";
-import { evaluateRisk } from "../core/risk/index.js";
+import { evaluateRisk, neutralizeWeights } from "../core/risk/index.js";
 
 export interface LiveSnapshot {
   asOf: number;
@@ -111,10 +111,24 @@ export class RiskLoop {
 
     const volumes = new Map<string, number>(); // unknown live; slippage falls back to 0
     const fills = account.flatten(toFlatten, this.marks, volumes);
+
+    // A per-leg flatten leaves the book directionally tilted (one side lighter).
+    // Re-equalize the survivors back to dollar-neutral rather than carry that
+    // tilt until the next scheduled rebalance. A full spread-stop (flattenAll)
+    // already goes flat, so there's nothing to neutralize there.
+    let reequalized: typeof fills = [];
+    if (!action.flattenAll) {
+      const weights = neutralizeWeights(account.positions(), this.marks, account.equity(this.marks));
+      reequalized = account.rebalance(weights, this.marks, volumes);
+    }
+    const trades = [...fills, ...reequalized];
+
+    const now = (this.deps.now ?? Date.now)();
     this.deps.store.transaction(() => {
       this.deps.store.saveAccountState(account.toState());
-      if (fills.length > 0) this.deps.store.saveTrades((this.deps.now ?? Date.now)(), fills);
+      if (trades.length > 0) this.deps.store.saveTrades(now, trades);
     });
-    await this.deps.notify.send(`flattened ${toFlatten.join(", ")}`).catch(() => {});
+    const note = reequalized.length > 0 ? ` · re-equalized book to neutral (${reequalized.length} trades)` : "";
+    await this.deps.notify.send(`flattened ${toFlatten.join(", ")}${note}`).catch(() => {});
   }
 }
