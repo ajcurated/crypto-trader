@@ -35,6 +35,7 @@ export function runWindow(prep: PreparedBacktest, strategy: Strategy, start: num
     initialCapital: cfg.initialCapital,
     volTarget: strategy.volTarget,
     maxLeverage: strategy.maxLeverage,
+    gainTrigger: strategy.gainTrigger,
   });
 }
 

@@ -23,6 +23,13 @@ export interface BacktestInput {
   volWindow?: number;
   /** Max exposure multiple when vol-targeting (default 2). */
   maxLeverage?: number;
+  /**
+   * Favorable-move trigger: also rebalance once equity has risen by this
+   * fraction since the last rebalance (e.g. 0.01 = +1%). `rebalanceEveryDays`
+   * stays as the time backstop. Undefined ⇒ pure time cadence. Evaluated at
+   * daily close, so it can't see intraday round-trips.
+   */
+  gainTrigger?: number;
 }
 
 export interface BacktestResult {
@@ -45,6 +52,10 @@ export function runBacktest(input: BacktestInput): BacktestResult {
   let current: CurrentBook = { longs: [], shorts: [] };
   let rebalances = 0;
   let fills = 0;
+  // Rebalance scheduling: time cadence (days since last rebalance) OR a
+  // favorable-gain trigger measured from the post-rebalance equity.
+  let lastRebDay = -Infinity;
+  let equityAtLastReb = input.initialCapital;
 
   for (let t = input.warmupDays; t < L; t++) {
     const prices = new Map<string, number>();
@@ -60,7 +71,11 @@ export function runBacktest(input: BacktestInput): BacktestResult {
     }
     if (rates.size > 0) account.accrueFunding(rates, prices);
 
-    if ((t - input.warmupDays) % input.rebalanceEveryDays === 0) {
+    const equityNow = account.equity(prices);
+    const timeDue = t - lastRebDay >= input.rebalanceEveryDays;
+    const gainDue =
+      input.gainTrigger !== undefined && equityAtLastReb > 0 && equityNow / equityAtLastReb - 1 >= input.gainTrigger;
+    if (timeDue || gainDue) {
       let book;
       if (input.signal.mode === "carry") {
         // Rank by trailing-average funding (window = lookbacks[0], default 3d).
@@ -90,6 +105,8 @@ export function runBacktest(input: BacktestInput): BacktestResult {
       fills += f.length;
       rebalances += 1;
       current = currentBookFromPositions(account.positions());
+      lastRebDay = t;
+      equityAtLastReb = account.equity(prices);
     }
 
     const point = account.mark(prices, input.dayTimestamps[t]!);

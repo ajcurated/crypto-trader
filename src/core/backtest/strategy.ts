@@ -10,4 +10,6 @@ export interface Strategy {
   volTarget?: number;
   /** Max exposure multiple when vol-targeting. */
   maxLeverage?: number;
+  /** Also rebalance once equity rises this fraction since the last rebalance (e.g. 0.01 = +1%). */
+  gainTrigger?: number;
 }

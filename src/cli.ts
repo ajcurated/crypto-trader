@@ -5,7 +5,7 @@ import { runDailyCycle } from "./runner/runner.js";
 import { formatReport } from "./runner/report.js";
 import { RiskLoop } from "./runner/riskLoop.js";
 import { Daemon } from "./runner/daemon.js";
-import { runBacktest, prepareBacktestData, robustness, walkForward, analyzeRegimes, regimePlaybook, regimeNow, sweepRebalance, type Strategy } from "./core/backtest/index.js";
+import { runBacktest, runWindow, prepareBacktestData, robustness, walkForward, analyzeRegimes, regimePlaybook, regimeNow, sweepRebalance, type Strategy } from "./core/backtest/index.js";
 import { STRATEGIES, PLAYBOOK, runComparison, formatComparison } from "./runner/compare.js";
 import { formatRobustness, formatWalkForward, formatRegimes, formatRegimeNow, formatPlaybook, formatSweep } from "./runner/evaluate.js";
 import { startDashboardServer } from "./dashboard/index.js";
@@ -175,6 +175,36 @@ async function main(): Promise<void> {
       console.log(formatRobustness(robustness(prep, strategies, cfg, { winLen: Number(process.env["EVAL_WINDOW"] ?? 60), step: Number(process.env["EVAL_STEP"] ?? 30) })));
       console.log("");
       console.log(formatWalkForward(walkForward(prep, strategies, cfg, { inLen: Number(process.env["EVAL_INSAMPLE"] ?? 90), outLen: Number(process.env["EVAL_OOS"] ?? 45) })));
+    } else if (command === "gain-wf") {
+      // Favorable-move rebalancing: ALSO rebalance once equity rises X% since the
+      // last rebalance (time interval stays as a backstop). Does triggering on
+      // gains beat a fixed clock — across windows and out-of-sample?
+      const data = new HyperLiquidDataSource();
+      const days = Number(process.env["COMPARE_DAYS"] ?? 800);
+      const minHistory = Number(process.env["COMPARE_MIN_HISTORY"] ?? 730);
+      console.log(`fetching up to ${days}d of history (coins with >= ${minHistory}d kept)…`);
+      const prep = await prepareBacktestData(data, { universeSize: 30, candleHistoryDays: days, minHistoryDays: minHistory });
+      if (prep.closesByCoin.size === 0) { console.error("gain-wf: no candle data."); process.exitCode = 1; return; }
+      const S = (name: string, rebalanceEveryDays: number, gainTrigger?: number): Strategy =>
+        ({ name, description: name, signal: config.signal, rebalanceEveryDays, gainTrigger });
+      const strategies: Strategy[] = [
+        S("fix7d", 7), S("fix5d", 5),
+        S("g1%/14d", 14, 0.01), S("g2%/14d", 14, 0.02), S("g3%/14d", 14, 0.03),
+        S("g1%/7d", 7, 0.01),
+      ];
+      const cfg = { paper: config.paper, initialCapital: config.initialCapital };
+      const warmup = Math.max(...config.signal.lookbacks) + 1;
+      const L = prep.dayTimestamps.length;
+      console.log(`(${prep.closesByCoin.size} coins, ${L} days)\n`);
+      console.log("full-window frequency & return:");
+      for (const s of strategies) {
+        const r = runWindow(prep, s, warmup, L, cfg);
+        console.log(`  ${s.name.padEnd(9)} rebalances ${String(r.rebalances).padStart(3)}  fills ${String(r.fills).padStart(4)}  return ${(r.metrics.totalReturn * 100).toFixed(1).padStart(7)}%  sharpe ${r.metrics.sharpe.toFixed(2).padStart(5)}  maxDD ${(r.metrics.maxDrawdown * 100).toFixed(1).padStart(6)}%  fees $${r.fees.toFixed(0)}`);
+      }
+      console.log("");
+      console.log(formatRobustness(robustness(prep, strategies, cfg, { winLen: Number(process.env["EVAL_WINDOW"] ?? 60), step: Number(process.env["EVAL_STEP"] ?? 30) })));
+      console.log("");
+      console.log(formatWalkForward(walkForward(prep, strategies, cfg, { inLen: Number(process.env["EVAL_INSAMPLE"] ?? 90), outLen: Number(process.env["EVAL_OOS"] ?? 45) })));
     } else if (command === "serve") {
       const port = Number(process.env["PORT"] ?? 8080);
       startDashboardServer(store, port, dashboardAuth(process.env));
@@ -196,7 +226,7 @@ async function main(): Promise<void> {
         process.on("SIGINT", () => { daemon.stop(); resolve(); });
       });
     } else {
-      console.error(`unknown command: ${command}\nusage: cli.ts [run|report|watch|daemon|backtest|compare|evaluate|regimes|playbook|sweep|interval-wf|serve|app]`);
+      console.error(`unknown command: ${command}\nusage: cli.ts [run|report|watch|daemon|backtest|compare|evaluate|regimes|playbook|sweep|interval-wf|gain-wf|serve|app]`);
       process.exitCode = 1;
     }
   } finally {
