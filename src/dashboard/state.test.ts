@@ -23,6 +23,17 @@ describe("buildDashboardState", () => {
     expect(d.metrics.maxDrawdown).toBeCloseTo(0, 6);
     expect(d.pnl).toEqual({ price: 4_300, funding: -50, fees: 250 });
     expect(d.positions.map((p) => [p.coin, p.side])).toEqual([["BTC", "long"], ["ETH", "short"]]);
+    // USD notional at entry: BTC 1×100, ETH 2×50; gross = sum.
+    expect(d.positions.map((p) => p.notional)).toEqual([100, 100]);
+    expect(d.grossAtEntry).toBe(200);
+    // Daily candles from the 2 equity points (day 0 and day 1).
+    expect(d.candles).toHaveLength(2);
+    expect(d.candles[1]).toMatchObject({ open: 100_000, close: 104_000 });
+    // Signal ranking joins scores with held side.
+    expect(d.signalRanking).toEqual([
+      { coin: "BTC", score: 1.5, held: "long", funding: null },
+      { coin: "ETH", score: -0.8, held: "short", funding: null },
+    ]);
     expect(d.latestSignal!.strongest.coin).toBe("BTC");
     expect(d.latestSignal!.weakest.coin).toBe("ETH");
     expect(d.recentTrades).toEqual([{ timestamp: 86_400_000, coin: "BTC", side: "buy", size: 1, fillPrice: 100, fee: 0.5 }]);
@@ -34,11 +45,14 @@ describe("buildDashboardState", () => {
     s.init();
     const d = buildDashboardState(s);
     expect(d.equityCurve).toEqual([]);
+    expect(d.candles).toEqual([]);
     expect(d.latestEquity).toBe(0);
     expect(d.positions).toEqual([]);
+    expect(d.grossAtEntry).toBe(0);
     expect(d.pnl).toBeNull();
     expect(d.recentTrades).toEqual([]);
     expect(d.latestSignal).toBeNull();
+    expect(d.signalRanking).toEqual([]);
     s.close();
   });
 });

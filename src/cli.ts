@@ -220,7 +220,18 @@ async function main(): Promise<void> {
       const notify = buildNotifier(process.env);
       const daemon = new Daemon({ data, store, config, notify, now: () => Date.now(), schedule: (fn, ms) => void setInterval(fn, ms) });
       await daemon.start();
-      startDashboardServer(store, port, { ...dashboardAuth(process.env), live: () => daemon.liveSnapshot() });
+      const strategyMeta = {
+        mode: config.signal.mode ?? "momentum",
+        lookbacks: config.signal.lookbacks,
+        quintileFraction: config.signal.quintileFraction,
+        grossExposure: config.signal.grossExposure,
+        hysteresisBuffer: config.signal.hysteresisBuffer,
+        rebalanceIntervalDays: config.rebalanceIntervalDays,
+        volTarget: config.volTarget,
+        volWindow: config.volWindow,
+        maxLeverage: config.maxLeverage,
+      };
+      startDashboardServer(store, port, { ...dashboardAuth(process.env), live: () => daemon.liveSnapshot(), strategy: strategyMeta });
       console.log(`app running: daemon + live dashboard on http://localhost:${port} … (ctrl-c to stop)`);
       await new Promise<void>((resolve) => {
         process.on("SIGINT", () => { daemon.stop(); resolve(); });
