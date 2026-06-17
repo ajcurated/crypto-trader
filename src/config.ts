@@ -23,7 +23,9 @@ export interface Config {
 export const DEFAULT_CONFIG: Config = {
   universeSize: 20,
   candleHistoryDays: 90,
-  rebalanceIntervalDays: 7,
+  // 5-day cadence: walk-forward validation found 5d more responsive than 7d on
+  // current data; override per-run with REBALANCE_INTERVAL_DAYS.
+  rebalanceIntervalDays: 5,
   initialCapital: 100_000,
   dbPath: "crypto-markets.sqlite",
   minUniverseForRebalance: 6,
