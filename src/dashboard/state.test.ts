@@ -31,12 +31,29 @@ describe("buildDashboardState", () => {
     expect(d.candles[1]).toMatchObject({ open: 100_000, close: 104_000 });
     // Signal ranking joins scores with held side.
     expect(d.signalRanking).toEqual([
-      { coin: "BTC", score: 1.5, held: "long", funding: null },
-      { coin: "ETH", score: -0.8, held: "short", funding: null },
+      { coin: "BTC", score: 1.5, held: "long", funding: null, inUniverse: true },
+      { coin: "ETH", score: -0.8, held: "short", funding: null, inUniverse: true },
     ]);
     expect(d.latestSignal!.strongest.coin).toBe("BTC");
     expect(d.latestSignal!.weakest.coin).toBe("ETH");
     expect(d.recentTrades).toEqual([{ timestamp: 86_400_000, coin: "BTC", side: "buy", size: 1, fillPrice: 100, fee: 0.5 }]);
+    s.close();
+  });
+
+  it("appends held positions that have dropped out of the ranked universe", () => {
+    const s = new SqliteDatastore(":memory:");
+    s.init();
+    s.saveEquityPoint({ timestamp: 0, equity: 100_000, pricePnl: 0, fundingPnl: 0, fees: 0 });
+    // Hold BTC (scored) + AAVE (short, NOT in the latest signal → stranded).
+    s.saveAccountState({ initialCapital: 100_000, cash: 100_000, positions: [{ coin: "BTC", size: 1, entry: 100 }, { coin: "AAVE", size: -2, entry: 50 }], realizedPricePnl: 0, feesPaid: 0, fundingPnl: 0 });
+    s.saveSignal(1, [{ coin: "BTC", score: 1.2 }, { coin: "SOL", score: -0.5 }]);
+    const d = buildDashboardState(s);
+    // Ranked rows first, then the stranded held leg flagged inUniverse:false.
+    expect(d.signalRanking).toEqual([
+      { coin: "BTC", score: 1.2, held: "long", funding: null, inUniverse: true },
+      { coin: "SOL", score: -0.5, held: null, funding: null, inUniverse: true },
+      { coin: "AAVE", score: null, held: "short", funding: null, inUniverse: false },
+    ]);
     s.close();
   });
 
