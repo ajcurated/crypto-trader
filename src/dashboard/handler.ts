@@ -198,16 +198,24 @@ function bookTable(d) {
 function driversTable(d) {
   const rows = d.signalRanking || [];
   if (!rows.length) return '<p class="muted">no signal captured yet.</p>';
-  const maxAbs = Math.max(1e-9, ...rows.map((r) => Math.abs(r.score)));
+  const maxAbs = Math.max(1e-9, ...rows.filter((r) => r.score != null).map((r) => Math.abs(r.score)));
   return '<table><tr><th class="num">#</th><th>coin</th><th>held</th><th>momentum score</th><th class="num">funding (ann.)</th></tr>' +
     rows.map((r, i) => {
-      const w = Math.round((Math.abs(r.score) / maxAbs) * 90);
-      const col = r.score >= 0 ? "#3fb950" : "#f85149";
-      const bar = '<span class="bar" style="width:' + w + "px;background:" + col + '"></span> ' + fmt(r.score, 2);
       const badge = r.held ? sideBadge(r.held) : '<span class="badge flat">—</span>';
       const f = annPct(r.funding);
       const fc = f == null ? "—" : '<span class="' + cls(-f) + '">' + (f >= 0 ? "+" : "") + fmt(f * 100, 1) + "%</span>";
-      return '<tr class="' + (r.held ? "held" : "") + '"><td class="num sub">' + (i + 1) + "</td><td><b>" + r.coin + "</b></td><td>" + badge + "</td><td>" + bar + '</td><td class="num">' + fc + "</td></tr>";
+      let rank, scoreCell;
+      if (r.score == null) {
+        // Held leg that has dropped out of the ranked universe — exits next rebalance.
+        rank = '<span class="sub">—</span>';
+        scoreCell = '<span class="sub">⚠ left universe · exits next rebalance</span>';
+      } else {
+        rank = String(i + 1);
+        const w = Math.round((Math.abs(r.score) / maxAbs) * 90);
+        const col = r.score >= 0 ? "#3fb950" : "#f85149";
+        scoreCell = '<span class="bar" style="width:' + w + "px;background:" + col + '"></span> ' + fmt(r.score, 2);
+      }
+      return '<tr class="' + (r.held ? "held" : "") + '"><td class="num sub">' + rank + "</td><td><b>" + r.coin + "</b></td><td>" + badge + "</td><td>" + scoreCell + '</td><td class="num">' + fc + "</td></tr>";
     }).join("") + "</table>" +
     '<div class="sub" style="margin-top:6px">longs = strongest risk-adjusted momentum, shorts = weakest. funding shown as cost to the held side (red = we pay).</div>';
 }

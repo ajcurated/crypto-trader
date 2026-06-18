@@ -14,10 +14,13 @@ export interface DashboardPosition {
 /** One row of the ranked signal, annotated with whether/how it's held. */
 export interface SignalRankRow {
   coin: string;
-  score: number;
+  /** Composite momentum score, or null if the coin has left the ranked universe. */
+  score: number | null;
   held: "long" | "short" | null;
   /** Current hourly funding rate from the latest snapshot, or null if unknown. */
   funding: number | null;
+  /** False for a held position that has dropped out of the ranked universe. */
+  inUniverse: boolean;
 }
 
 export interface DashboardTrade {
@@ -83,12 +86,22 @@ export function buildDashboardState(store: Datastore): DashboardState {
   // is the "why are we in these positions" view.
   const heldSide = new Map(positions.map((p) => [p.coin, p.side]));
   const fundingByCoin = new Map((store.getLatestSnapshot()?.universe ?? []).map((c) => [c.name, c.funding]));
+  const scored = new Set((sig?.scores ?? []).map((s) => s.coin));
   const signalRanking: SignalRankRow[] = (sig?.scores ?? []).map((s) => ({
     coin: s.coin,
     score: s.score,
     held: heldSide.get(s.coin) ?? null,
     funding: fundingByCoin.get(s.coin) ?? null,
+    inUniverse: true,
   }));
+  // Held positions that have dropped out of the ranked universe carry no current
+  // score, so they're absent above. Append them (flagged) so the table accounts
+  // for every leg in the book — these are pending-exit stranded holds.
+  for (const p of positions) {
+    if (!scored.has(p.coin)) {
+      signalRanking.push({ coin: p.coin, score: null, held: p.side, funding: fundingByCoin.get(p.coin) ?? null, inUniverse: false });
+    }
+  }
 
   return {
     equityCurve,
